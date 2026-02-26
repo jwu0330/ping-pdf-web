@@ -620,6 +620,20 @@
     armLamp.classList.toggle('on', !!isOn);
   }
 
+  function updateArmStatusText() {
+    if (!armed) {
+      setStatus('未啟用', false);
+      return;
+    }
+    if (fieldType.value === 'block') {
+      setStatus('已啟用（block：在 PDF 上按住拖曳拉出方框）', true);
+    } else if (fieldType.value === 'text') {
+      setStatus('已啟用（text：在 PDF 上按住拖曳拉出方框）', true);
+    } else {
+      setStatus('已啟用（check：點一下定位）', true);
+    }
+  }
+
   function setActiveKey(key) {
     activeKey = key;
     markersByKey.forEach((m, k) => m.classList.toggle('selected', k === key));
@@ -701,6 +715,17 @@
       renderList();
       dragState = null;
     });
+
+    marker.addEventListener('pointercancel', (evt) => {
+      if (!dragState || dragState.pointerId !== evt.pointerId || dragState.key !== key) return;
+      marker.classList.remove('dragging');
+      try {
+        marker.releasePointerCapture(evt.pointerId);
+      } catch {}
+      hideGuides();
+      renderList();
+      dragState = null;
+    });
   }
 
   function attachBlockSelect(blockEl, key) {
@@ -746,6 +771,16 @@
     });
 
     blockEl.addEventListener('pointerup', (evt) => {
+      if (!boxDragState || boxDragState.pointerId !== evt.pointerId || boxDragState.key !== key) return;
+      try {
+        blockEl.releasePointerCapture(evt.pointerId);
+      } catch {}
+      hideGuides();
+      boxDragState = null;
+      renderList();
+    });
+
+    blockEl.addEventListener('pointercancel', (evt) => {
       if (!boxDragState || boxDragState.pointerId !== evt.pointerId || boxDragState.key !== key) return;
       try {
         blockEl.releasePointerCapture(evt.pointerId);
@@ -1142,13 +1177,7 @@
   function arm() {
     armed = true;
     btnArm.classList.add('active');
-    if (fieldType.value === 'block') {
-      setStatus('已啟用（block：在 PDF 上按住拖曳拉出方框）', true);
-    } else if (fieldType.value === 'text') {
-      setStatus('已啟用（text：在 PDF 上按住拖曳拉出方框）', true);
-    } else {
-      setStatus('已啟用（check：點一下定位）', true);
-    }
+    updateArmStatusText();
   }
 
   function cancelArm() {
@@ -1156,7 +1185,7 @@
     btnArm.classList.remove('active');
     if (blockDraft?.el) blockDraft.el.remove();
     blockDraft = null;
-    setStatus('未啟用', false);
+    updateArmStatusText();
   }
 
   function toggleArm() {
@@ -1200,7 +1229,7 @@
       const wmmPage = (view[2] - view[0]) * PT_TO_MM;
       const hmmPage = (view[3] - view[1]) * PT_TO_MM;
       pageSize.textContent = `${wmmPage.toFixed(2)} × ${hmmPage.toFixed(2)} mm`;
-      setStatus(armed ? '已啟用（點擊取座標）' : '未啟用', armed);
+      updateArmStatusText();
     } catch (err) {
       errBox.textContent = String(err?.message || err);
     }
@@ -1374,12 +1403,13 @@
     if (d) Object.assign(entry, d);
 
     const key = addEntry(entry);
-    lastXY.textContent = `${key}: x=${mmText(mm.x_mm)}mm, y=${mmText(mm.y_mm)}mm`;
+    lastXY.textContent = `${key}: x=${mmText(entry.x_mm)}mm, y=${mmText(entry.y_mm)}mm`;
   });
 
   canvas.addEventListener('pointerdown', beginBlockDraft);
   canvas.addEventListener('pointermove', moveBlockDraft);
   canvas.addEventListener('pointerup', endBlockDraft);
+  canvas.addEventListener('pointercancel', endBlockDraft);
 
   btnLoad.addEventListener('click', loadAndRender);
   btnToggleSide.addEventListener('click', () => {
@@ -1393,6 +1423,7 @@
   });
   btnFit.addEventListener('click', fitScale);
   btnArm.addEventListener('click', toggleArm);
+  fieldType.addEventListener('change', updateArmStatusText);
   btnDeleteSelected.addEventListener('click', () => {
     deleteCheckedOrActive();
   });
