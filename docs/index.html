@@ -1,0 +1,1529 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>PDF 定位打勾工具</title>
+  <style>
+    :root { --bg:#f6f1e6; --panel:#efe6d4; --muted:#7d6f5a; --fg:#2e2518; --accent:#8b6d3b; --line:#d8c9b0; }
+    body { margin:0; font-family: "Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans TC", "PingFang TC", "Segoe UI", sans-serif; background:var(--bg); color:var(--fg); }
+    header { padding:14px 16px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:center; }
+    header h1 { font-size:16px; margin:0; font-weight:700; }
+    header .hint { color:var(--muted); font-size:12px; }
+    .wrap { display:grid; grid-template-columns: 460px 1fr; gap:0; height: calc(100vh - 52px); }
+    body.sidebar-collapsed .wrap { grid-template-columns: 0 1fr; }
+    .side { border-right:1px solid var(--line); background:var(--panel); padding:12px; overflow:auto; }
+    body.sidebar-collapsed .side { width:0; padding:0; border-right:none; overflow:hidden; }
+    .main { position:relative; overflow:auto; }
+    .card { border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px; background:#fffaf1; }
+    .card h2 { font-size:13px; margin:0 0 10px; color:#4a3b26; }
+    label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+    input[type="text"], input[type="number"], select, textarea {
+      width:100%; box-sizing:border-box; padding:8px 10px; border-radius:10px;
+      border:1px solid var(--line); background:#fffdf8; color:var(--fg); outline:none;
+    }
+    textarea { min-height:82px; resize:vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:12px; }
+    .row { display:flex; gap:8px; }
+    .row > * { flex:1; }
+    .btnrow { display:flex; gap:8px; flex-wrap:wrap; }
+    button {
+      border:1px solid var(--line); background:#fffdf8; color:var(--fg);
+      padding:8px 10px; border-radius:10px; cursor:pointer; font-weight:650; font-size:12px;
+    }
+    button.primary { background: #f2e7d1; border-color: #cdb48a; }
+    button.primary.active { background:#d9f3e0; border-color:#5caf71; color:#1d5f2d; }
+    button.danger { background: #fbe4e0; border-color: #e5aaa0; }
+    .small { font-size:11px; color:var(--muted); line-height:1.35; }
+    .kv { display:grid; grid-template-columns: 110px 1fr; gap:6px 10px; font-size:12px; }
+    .kv div:nth-child(odd){ color:var(--muted); }
+    #canvasWrap { position:relative; display:inline-block; margin:14px; user-select:none; }
+    canvas { background:#fff; border-radius:10px; box-shadow: 0 8px 30px rgba(0,0,0,0.35); }
+    .marker {
+      position:absolute;
+      transform: translate(-50%, -50%);
+      cursor:grab;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#111;
+      font-size:24px;
+      font-weight:900;
+      line-height:1;
+      width:24px;
+      height:24px;
+      text-shadow: 0 0 1px #fff, 0 0 2px #fff;
+    }
+    .marker.selected .m { color:#8b1f1f; }
+    .marker.dragging { cursor:grabbing; }
+    .marker .k {
+      position:absolute;
+      top:-16px;
+      left:12px;
+      transform:none;
+      font-size:10px;
+      color:#7a6644;
+      background:rgba(255,250,241,0.92);
+      border:1px solid #d8c9b0;
+      border-radius:8px;
+      padding:0 5px;
+      white-space:nowrap;
+      pointer-events:none;
+      opacity:0;
+      visibility:hidden;
+      transition:opacity .12s ease;
+    }
+    .marker:hover .k,
+    .marker.selected .k {
+      opacity:1;
+      visibility:visible;
+    }
+    .block-box {
+      position:absolute;
+      border:1px solid #8a8a8a;
+      background:rgba(120,120,120,0.22);
+      box-sizing:border-box;
+      pointer-events:auto;
+    }
+    .text-box {
+      position:absolute;
+      border:1px solid #9b7a43;
+      background:rgba(196,160,96,0.18);
+      box-sizing:border-box;
+      pointer-events:auto;
+      overflow:hidden;
+      padding:1px 2px;
+    }
+    .text-box .box-content {
+      width:100%;
+      height:100%;
+      color:#2e2518;
+      white-space:normal;
+      word-break:break-all;
+      overflow:hidden;
+      text-overflow:clip;
+      line-height:1.02;
+      letter-spacing:-0.02em;
+      user-select:none;
+      font-family: inherit;
+    }
+    .box-label {
+      position:absolute;
+      top:-16px;
+      left:0;
+      font-size:10px;
+      color:#6b5838;
+      background:#fffaf1;
+      border:1px solid #d8c9b0;
+      border-radius:6px;
+      padding:0 5px;
+      white-space:nowrap;
+      pointer-events:none;
+    }
+    .block-box.selected {
+      border:2px solid #7a2d18;
+      background:rgba(120,120,120,0.3);
+    }
+    .text-box.selected {
+      border:2px solid #7a2d18;
+      background:rgba(196,160,96,0.26);
+    }
+    .block-preview {
+      position:absolute;
+      border:1px dashed #6b6b6b;
+      background:rgba(120,120,120,0.15);
+      box-sizing:border-box;
+      pointer-events:none;
+    }
+    .list { margin-top:10px; border-top:1px dashed var(--line); padding-top:10px; display:grid; gap:8px; }
+    .item { border:1px solid var(--line); border-radius:10px; padding:8px; background:#fffdf8; }
+    .item.selected { border-color:#b1813c; box-shadow: inset 0 0 0 1px #d1ab72; }
+    .item .top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+    .tag { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:11px; color:#5a4a32; word-break:break-all; }
+    .historyTitle { font-size:11px; color:var(--muted); margin-bottom:6px; }
+    .chipBtn {
+      border:1px solid var(--line); border-radius:999px; padding:4px 10px; font-size:12px;
+      background:#f2e7d1; color:#6b5838; font-weight:700;
+    }
+    .itemGrid { display:grid; grid-template-columns: 1fr 96px 96px; gap:6px; margin-top:8px; }
+    .itemGrid.single { grid-template-columns: 1fr; }
+    .miniLabel { font-size:11px; color:var(--muted); margin-bottom:4px; }
+    .split { border-top:1px dashed var(--line); margin:10px 0; }
+    .err { color:#b93b2f; font-size:12px; white-space:pre-wrap; }
+    .lamp {
+      display:inline-block;
+      width:10px;
+      height:10px;
+      border-radius:999px;
+      margin-right:6px;
+      vertical-align:middle;
+      border:1px solid #9a9a9a;
+      background:#d5d5d5;
+    }
+    .lamp.on {
+      background:#35b85a;
+      border-color:#278c44;
+      box-shadow:0 0 0 2px rgba(53,184,90,0.2);
+    }
+    .snapRow {
+      display:flex;
+      gap:8px;
+      align-items:end;
+      margin-top:8px;
+      flex-wrap:wrap;
+    }
+    .snapCheck {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-size:12px;
+      color:var(--fg);
+      margin-bottom:4px;
+    }
+    .align-guide {
+      position:absolute;
+      pointer-events:none;
+      z-index:12;
+      display:none;
+    }
+    .align-guide.v {
+      top:0;
+      bottom:0;
+      width:0;
+      border-left:1px dashed #c73232;
+    }
+    .align-guide.h {
+      left:0;
+      right:0;
+      height:0;
+      border-top:1px dashed #c73232;
+    }
+    .topBtn {
+      margin-left:auto;
+      padding:6px 10px;
+      border-radius:8px;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>PDF 定位打勾工具</h1>
+  <div class="hint">點一下定位、拖一下微調（左上為原點，單位 mm）</div>
+  <button id="btnToggleSide" class="topBtn">收起側邊欄</button>
+</header>
+
+<div class="wrap">
+  <aside class="side">
+    <div class="card">
+      <h2>① 載入 PDF</h2>
+      <label>PDF 檔案</label>
+      <input id="pdfFile" type="file" accept="application/pdf"/>
+      <div class="row" style="margin-top:10px;">
+        <div>
+          <label>頁碼</label>
+          <input id="pageNo" type="number" min="1" value="1"/>
+        </div>
+        <div>
+          <label>縮放（整數）</label>
+          <input id="scale" type="number" min="1" max="8" step="1" value="2"/>
+        </div>
+      </div>
+      <div class="btnrow" style="margin-top:10px;">
+        <button class="primary" id="btnLoad">載入/重繪</button>
+        <button id="btnFit">自動縮放</button>
+      </div>
+      <div class="small" style="margin-top:10px;">
+        直接開啟本頁即可使用（不需要另外放 pdfjs 檔案）。
+      </div>
+      <div id="err" class="err" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>② 新增欄位（自動編號）</h2>
+      <div class="small">key 會自動產生（如 field_001、field_002）。</div>
+
+      <div class="row" style="margin-top:10px;">
+        <div>
+          <label>類型</label>
+          <select id="fieldType">
+            <option value="check">check（打勾）</option>
+            <option value="text">text（單行）</option>
+            <option value="block">block（區塊）</option>
+          </select>
+        </div>
+        <div>
+          <label>字級（絕對 pt）</label>
+          <select id="fontSize">
+            <option value="8">8</option>
+            <option value="8.5">8.5</option>
+            <option value="9">9</option>
+            <option value="9.5">9.5</option>
+            <option value="10">10</option>
+            <option value="10.5">10.5</option>
+            <option value="11">11</option>
+            <option value="11.5">11.5</option>
+            <option value="12" selected>12</option>
+            <option value="12.5">12.5</option>
+            <option value="13">13</option>
+            <option value="13.5">13.5</option>
+            <option value="14">14</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <div>
+          <label>對齊（text）</label>
+          <select id="align">
+            <option value="L">L</option>
+            <option value="C">C</option>
+            <option value="R">R</option>
+          </select>
+        </div>
+        <div>
+          <label>內容型態（text）</label>
+          <select id="valueMode">
+            <option value="text">文字</option>
+            <option value="number">數字</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <div>
+          <input id="wmm" type="hidden" value=""/>
+          <input id="hmm" type="hidden" value=""/>
+          <input id="dxy" type="hidden" value=""/>
+        </div>
+      </div>
+
+      <div class="btnrow" style="margin-top:10px;">
+        <button class="primary" id="btnArm">定位</button>
+        <button class="danger" id="btnDeleteSelected">刪除選取</button>
+      </div>
+      <div class="snapRow">
+        <button id="btnSnapToggle">吸附/對齊：關</button>
+        <div style="min-width:110px;">
+          <label>顆粒（mm）</label>
+          <select id="snapStep">
+            <option value="0.5">0.5</option>
+            <option value="1" selected>1</option>
+            <option value="2">2</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+        <div style="min-width:110px;">
+          <label>方向鍵步距</label>
+          <select id="nudgeStep">
+            <option value="0.1">0.1 mm</option>
+            <option value="0.2" selected>0.2 mm</option>
+            <option value="0.5">0.5 mm</option>
+            <option value="1">1 mm</option>
+          </select>
+        </div>
+      </div>
+      <div class="small" style="margin-top:10px;">
+        最簡流程：check 用點一下；text/block 用拖曳拉方框。<br/>
+        快捷鍵：Ctrl+D 複製選取、Delete 刪除選取。
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>③ 座標輸出</h2>
+      <div class="kv">
+        <div>狀態</div><div id="status"><span id="armLamp" class="lamp"></span><span id="statusText">未啟用</span></div>
+        <div>最後座標</div><div id="lastXY">—</div>
+        <div>頁面尺寸</div><div id="pageSize">—</div>
+      </div>
+      <div class="split"></div>
+      <label>mapping.json</label>
+      <textarea id="out" spellcheck="false"></textarea>
+      <div class="btnrow" style="margin-top:10px;">
+        <button class="primary" id="btnCopy">複製</button>
+        <button id="btnDownload">下載 mapping.json</button>
+        <button id="btnImport">匯入 mapping.json</button>
+        <button class="danger" id="btnClear">清空</button>
+      </div>
+      <input id="importFile" type="file" accept="application/json" style="display:none"/>
+      <div class="historyTitle">歷史清單（上方每個標記，這裡都有一個對應按鍵）</div>
+      <div class="list" id="list"></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div id="canvasWrap">
+      <canvas id="pdfCanvas"></canvas>
+      <div id="guideV" class="align-guide v"></div>
+      <div id="guideH" class="align-guide h"></div>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+  const CDN_WORKER = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = CDN_WORKER;
+  }
+
+  const PT_TO_MM = 25.4 / 72;
+  const MM_TO_PT = 72 / 25.4;
+  const COORD_DECIMALS = 3;
+  const FONT_SIZE_OPTIONS_HTML = '<option value="8">8</option><option value="8.5">8.5</option><option value="9">9</option><option value="9.5">9.5</option><option value="10">10</option><option value="10.5">10.5</option><option value="11">11</option><option value="11.5">11.5</option><option value="12">12</option><option value="12.5">12.5</option><option value="13">13</option><option value="13.5">13.5</option><option value="14">14</option>';
+  const el = (id) => document.getElementById(id);
+
+  const pdfFile = el('pdfFile');
+  const btnLoad = el('btnLoad');
+  const btnFit = el('btnFit');
+  const pageNo = el('pageNo');
+  const scaleEl = el('scale');
+  const canvas = el('pdfCanvas');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const wrap = el('canvasWrap');
+
+  const fieldType = el('fieldType');
+  const fontSize = el('fontSize');
+  const align = el('align');
+  const valueMode = el('valueMode');
+  const wmm = el('wmm');
+  const hmm = el('hmm');
+  const dxy = el('dxy');
+  const btnArm = el('btnArm');
+  const btnDeleteSelected = el('btnDeleteSelected');
+  const btnToggleSide = el('btnToggleSide');
+  const btnSnapToggle = el('btnSnapToggle');
+  const snapStep = el('snapStep');
+  const nudgeStep = el('nudgeStep');
+
+  const status = el('status');
+  const lastXY = el('lastXY');
+  const pageSize = el('pageSize');
+  const out = el('out');
+  const btnCopy = el('btnCopy');
+  const btnDownload = el('btnDownload');
+  const btnImport = el('btnImport');
+  const importFile = el('importFile');
+  const btnClear = el('btnClear');
+  const list = el('list');
+  const errBox = el('err');
+  const armLamp = el('armLamp');
+  const statusText = el('statusText');
+  const guideV = el('guideV');
+  const guideH = el('guideH');
+
+  let pdfDoc = null;
+  let currentPage = null;
+  let viewport = null;
+  let armed = false;
+  let dragState = null;
+  let boxDragState = null;
+  let blockDraft = null;
+  let activeKey = null;
+
+  const mapping = {};
+  const markersByKey = new Map();
+  const blocksByKey = new Map();
+  const checkedKeys = new Set();
+  const CJK_REGEX = /[\u3400-\u9FFF\uF900-\uFAFF]/;
+
+  const snapConfig = {
+    enabled: false,
+    guides: false,
+    step: Math.max(0.1, parseFloat(snapStep.value || '1'))
+  };
+
+  function roundMm(value) {
+    return +Number(value).toFixed(COORD_DECIMALS);
+  }
+
+  function mmText(value) {
+    return Number(value).toFixed(COORD_DECIMALS);
+  }
+
+  function ptToMmText(pt) {
+    return (Number(pt) * PT_TO_MM).toFixed(3);
+  }
+
+  function estimateCharsByWidth(widthMm, fontPt) {
+    const widthPt = Number(widthMm) * MM_TO_PT;
+    const avgCharPt = Math.max(1, Number(fontPt) * 1.05);
+    return Math.max(1, Math.floor(widthPt / avgCharPt));
+  }
+
+  function makeSampleChineseText(charCount) {
+    const sample = '大家好';
+    let outText = '';
+    while (outText.length < charCount) outText += sample;
+    return outText.slice(0, charCount);
+  }
+
+  function hideGuides() {
+    guideV.style.display = 'none';
+    guideH.style.display = 'none';
+  }
+
+  function syncSidebarButton() {
+    btnToggleSide.textContent = document.body.classList.contains('sidebar-collapsed') ? '展開側邊欄' : '收起側邊欄';
+  }
+
+  function showGuideX(xMm) {
+    if (!snapConfig.guides) return;
+    const px = mmToCanvasPx(xMm, 0).x;
+    guideV.style.left = `${px}px`;
+    guideV.style.display = 'block';
+  }
+
+  function showGuideY(yMm) {
+    if (!snapConfig.guides) return;
+    const px = mmToCanvasPx(0, yMm).y;
+    guideH.style.top = `${px}px`;
+    guideH.style.display = 'block';
+  }
+
+  function collectSnapTargets(excludeKey = null) {
+    const xs = [];
+    const ys = [];
+    for (const [key, entry] of Object.entries(mapping)) {
+      if (key === excludeKey) continue;
+      if (typeof entry.x_mm === 'number' && typeof entry.y_mm === 'number') {
+        xs.push(entry.x_mm);
+        ys.push(entry.y_mm);
+      }
+    }
+    return { xs, ys };
+  }
+
+  function applySnap(xMm, yMm, excludeKey = null, options = {}) {
+    const useGrid = options.useGrid !== false;
+    if (!snapConfig.enabled || !viewport) {
+      hideGuides();
+      return { x_mm: xMm, y_mm: yMm };
+    }
+
+    const step = snapConfig.step;
+    let snappedX = xMm;
+    let snappedY = yMm;
+    if (useGrid) {
+      snappedX = Math.round(xMm / step) * step;
+      snappedY = Math.round(yMm / step) * step;
+    }
+
+    const threshold = Math.max(0.6, step * 0.8);
+    const { xs, ys } = collectSnapTargets(excludeKey);
+    let guideX = null;
+    let guideY = null;
+
+    for (const tx of xs) {
+      if (Math.abs(tx - snappedX) <= threshold) {
+        snappedX = tx;
+        guideX = tx;
+        break;
+      }
+    }
+    for (const ty of ys) {
+      if (Math.abs(ty - snappedY) <= threshold) {
+        snappedY = ty;
+        guideY = ty;
+        break;
+      }
+    }
+
+    if (snapConfig.guides) {
+      if (guideX === null) guideV.style.display = 'none';
+      else showGuideX(guideX);
+    } else {
+      guideV.style.display = 'none';
+    }
+
+    if (snapConfig.guides) {
+      if (guideY === null) guideH.style.display = 'none';
+      else showGuideY(guideY);
+    } else {
+      guideH.style.display = 'none';
+    }
+
+    return { x_mm: snappedX, y_mm: snappedY };
+  }
+
+  function sortKeys() {
+    return Object.keys(mapping).sort((a, b) => (mapping[a].order || 0) - (mapping[b].order || 0));
+  }
+
+  function maxOrder() {
+    return sortKeys().reduce((acc, key) => Math.max(acc, mapping[key].order || 0), 0);
+  }
+
+  function syncSnapToggleButton() {
+    btnSnapToggle.classList.toggle('primary', snapConfig.enabled);
+    btnSnapToggle.classList.toggle('active', snapConfig.enabled);
+    btnSnapToggle.textContent = `吸附/對齊：${snapConfig.enabled ? '開' : '關'}`;
+  }
+
+  function toggleSnapAssist() {
+    const next = !snapConfig.enabled;
+    snapConfig.enabled = next;
+    snapConfig.guides = next;
+    snapConfig.step = Math.max(0.1, parseFloat(snapStep.value || '1'));
+    if (!next) hideGuides();
+    syncSnapToggleButton();
+  }
+
+  function updateSnapStepOnly() {
+    snapConfig.step = Math.max(0.1, parseFloat(snapStep.value || '1'));
+  }
+
+  function moveOrder(key, delta) {
+    const keys = sortKeys();
+    const index = keys.indexOf(key);
+    const targetIndex = index + delta;
+    if (index < 0 || targetIndex < 0 || targetIndex >= keys.length) return;
+    const targetKey = keys[targetIndex];
+    const currentOrder = mapping[key].order || 0;
+    mapping[key].order = mapping[targetKey].order || 0;
+    mapping[targetKey].order = currentOrder;
+    updateOutput();
+    renderList();
+  }
+
+  function nextKey() {
+    let i = 1;
+    while (mapping[`field_${String(i).padStart(3, '0')}`]) i += 1;
+    return `field_${String(i).padStart(3, '0')}`;
+  }
+
+  function parseDxy() {
+    const text = (dxy.value || '').trim();
+    if (!text) return null;
+    const nums = text.split(',').map(v => parseFloat(v.trim()));
+    if (nums.length !== 2 || nums.some(Number.isNaN)) return null;
+    return { dx_mm: nums[0], dy_mm: nums[1] };
+  }
+
+  function mmToCanvasPx(x_mm, y_mm) {
+    const x_pt = x_mm * MM_TO_PT;
+    const y_pt = y_mm * MM_TO_PT;
+    return { x: x_pt * viewport.scale, y: y_pt * viewport.scale };
+  }
+
+  function canvasPxToMm(x_px, y_px) {
+    const x_pt = x_px / viewport.scale;
+    const y_pt = y_px / viewport.scale;
+    return { x_mm: x_pt * PT_TO_MM, y_mm: y_pt * PT_TO_MM };
+  }
+
+  function updateOutput() {
+    out.value = JSON.stringify(mapping, null, 2);
+  }
+
+  function setStatus(text, isOn) {
+    statusText.textContent = text;
+    armLamp.classList.toggle('on', !!isOn);
+  }
+
+  function updateArmStatusText() {
+    if (!armed) {
+      setStatus('未啟用', false);
+      return;
+    }
+    if (fieldType.value === 'block') {
+      setStatus('已啟用（block：在 PDF 上按住拖曳拉出方框）', true);
+    } else if (fieldType.value === 'text') {
+      setStatus('已啟用（text：在 PDF 上按住拖曳拉出方框）', true);
+    } else {
+      setStatus('已啟用（check：點一下定位）', true);
+    }
+  }
+
+  function setActiveKey(key) {
+    activeKey = key;
+    markersByKey.forEach((m, k) => m.classList.toggle('selected', k === key));
+    blocksByKey.forEach((b, k) => b.classList.toggle('selected', k === key));
+  }
+
+  function deleteByKeys(keys) {
+    if (!keys.length) return;
+    for (const key of keys) {
+      delete mapping[key];
+      checkedKeys.delete(key);
+      const marker = markersByKey.get(key);
+      if (marker) {
+        marker.remove();
+        markersByKey.delete(key);
+      }
+      const block = blocksByKey.get(key);
+      if (block) {
+        block.remove();
+        blocksByKey.delete(key);
+      }
+      if (activeKey === key) activeKey = null;
+    }
+    updateOutput();
+    renderList();
+  }
+
+  function clearMarkers() {
+    markersByKey.forEach(marker => marker.remove());
+    markersByKey.clear();
+    blocksByKey.forEach(block => block.remove());
+    blocksByKey.clear();
+    if (blockDraft?.el) blockDraft.el.remove();
+    blockDraft = null;
+  }
+
+  function placeMarkerElement(marker, x_px, y_px) {
+    marker.style.left = `${x_px}px`;
+    marker.style.top = `${y_px}px`;
+  }
+
+  function attachDrag(marker, key) {
+    marker.addEventListener('pointerdown', (evt) => {
+      if (!viewport || !mapping[key]) return;
+      evt.preventDefault();
+      evt.stopPropagation();
+      setActiveKey(key);
+      marker.classList.add('dragging');
+      dragState = { key, marker, pointerId: evt.pointerId };
+      marker.setPointerCapture(evt.pointerId);
+    });
+
+    marker.addEventListener('pointermove', (evt) => {
+      if (!dragState || dragState.pointerId !== evt.pointerId || dragState.key !== key) return;
+      const rect = canvas.getBoundingClientRect();
+      let x = evt.clientX - rect.left;
+      let y = evt.clientY - rect.top;
+      x = Math.max(0, Math.min(canvas.width, x));
+      y = Math.max(0, Math.min(canvas.height, y));
+
+      placeMarkerElement(marker, x, y);
+      const mm = canvasPxToMm(x, y);
+      const snapped = applySnap(mm.x_mm, mm.y_mm, key, { useGrid: false });
+      mapping[key].x_mm = roundMm(snapped.x_mm);
+      mapping[key].y_mm = roundMm(snapped.y_mm);
+      const snappedPx = mmToCanvasPx(mapping[key].x_mm, mapping[key].y_mm);
+      placeMarkerElement(marker, snappedPx.x, snappedPx.y);
+      lastXY.textContent = `${key}: x=${mmText(mapping[key].x_mm)}mm, y=${mmText(mapping[key].y_mm)}mm`;
+      updateOutput();
+    });
+
+    marker.addEventListener('pointerup', (evt) => {
+      if (!dragState || dragState.pointerId !== evt.pointerId || dragState.key !== key) return;
+      marker.classList.remove('dragging');
+      try {
+        marker.releasePointerCapture(evt.pointerId);
+      } catch {}
+      hideGuides();
+      renderList();
+      dragState = null;
+    });
+
+    marker.addEventListener('pointercancel', (evt) => {
+      if (!dragState || dragState.pointerId !== evt.pointerId || dragState.key !== key) return;
+      marker.classList.remove('dragging');
+      try {
+        marker.releasePointerCapture(evt.pointerId);
+      } catch {}
+      hideGuides();
+      renderList();
+      dragState = null;
+    });
+  }
+
+  function attachBlockSelect(blockEl, key) {
+    blockEl.addEventListener('pointerdown', (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      if (!viewport || !mapping[key]) return;
+      setActiveKey(key);
+      const pos = getClickPxOnCanvas(evt);
+      blockEl.setPointerCapture(evt.pointerId);
+      boxDragState = {
+        key,
+        pointerId: evt.pointerId,
+        startXpx: pos.x,
+        startYpx: pos.y,
+        originXmm: mapping[key].x_mm,
+        originYmm: mapping[key].y_mm
+      };
+      renderList();
+    });
+
+    blockEl.addEventListener('pointermove', (evt) => {
+      if (!boxDragState || boxDragState.pointerId !== evt.pointerId || boxDragState.key !== key) return;
+      const entry = mapping[key];
+      if (!entry) return;
+      const pos = getClickPxOnCanvas(evt);
+      const deltaXpx = pos.x - boxDragState.startXpx;
+      const deltaYpx = pos.y - boxDragState.startYpx;
+      const deltaXmm = (deltaXpx / viewport.scale) * PT_TO_MM;
+      const deltaYmm = (deltaYpx / viewport.scale) * PT_TO_MM;
+
+      const preX = boxDragState.originXmm + deltaXmm;
+      const preY = boxDragState.originYmm + deltaYmm;
+      const snapped = applySnap(preX, preY, key, { useGrid: false });
+
+      const maxXmm = (canvas.width / viewport.scale) * PT_TO_MM - (entry.w_mm || 0);
+      const maxYmm = (canvas.height / viewport.scale) * PT_TO_MM - (entry.h_mm || 0);
+      entry.x_mm = roundMm(Math.max(0, Math.min(maxXmm, snapped.x_mm)));
+      entry.y_mm = roundMm(Math.max(0, Math.min(maxYmm, snapped.y_mm)));
+      upsertBlock(key, entry);
+      lastXY.textContent = `${key}: x=${mmText(entry.x_mm)}mm, y=${mmText(entry.y_mm)}mm`;
+      updateOutput();
+    });
+
+    blockEl.addEventListener('pointerup', (evt) => {
+      if (!boxDragState || boxDragState.pointerId !== evt.pointerId || boxDragState.key !== key) return;
+      try {
+        blockEl.releasePointerCapture(evt.pointerId);
+      } catch {}
+      hideGuides();
+      boxDragState = null;
+      renderList();
+    });
+
+    blockEl.addEventListener('pointercancel', (evt) => {
+      if (!boxDragState || boxDragState.pointerId !== evt.pointerId || boxDragState.key !== key) return;
+      try {
+        blockEl.releasePointerCapture(evt.pointerId);
+      } catch {}
+      hideGuides();
+      boxDragState = null;
+      renderList();
+    });
+  }
+
+  function upsertMarker(key, entry) {
+    if (entry.kind === 'block' || entry.kind === 'text') return;
+    if (!viewport) return;
+    let marker = markersByKey.get(key);
+    const markerSymbol = entry.kind === 'check'
+      ? (entry.checked === false ? '□' : (entry.value?.trim() || '✓'))
+      : '•';
+    if (!marker) {
+      marker = document.createElement('div');
+      marker.className = 'marker';
+      marker.innerHTML = `<span class="m">${markerSymbol}</span><span class="k">${key}</span>`;
+      wrap.appendChild(marker);
+      markersByKey.set(key, marker);
+      attachDrag(marker, key);
+    } else {
+      const symbolEl = marker.querySelector('.m');
+      if (symbolEl) symbolEl.textContent = markerSymbol;
+    }
+
+    const symbolEl = marker.querySelector('.m');
+    if (symbolEl && Number.isFinite(entry.font_size)) {
+      const px = Math.max(2, entry.font_size * viewport.scale);
+      symbolEl.style.fontSize = `${px}px`;
+    }
+
+    const p = mmToCanvasPx(entry.x_mm, entry.y_mm);
+    placeMarkerElement(marker, p.x, p.y);
+    marker.classList.toggle('selected', key === activeKey);
+  }
+
+  function upsertBlock(key, entry) {
+    if ((entry.kind !== 'block' && entry.kind !== 'text') || !viewport) return;
+    let block = blocksByKey.get(key);
+    if (!block) {
+      block = document.createElement('div');
+      block.className = entry.kind === 'text' ? 'text-box' : 'block-box';
+      wrap.appendChild(block);
+      blocksByKey.set(key, block);
+      attachBlockSelect(block, key);
+    } else {
+      block.className = entry.kind === 'text' ? 'text-box' : 'block-box';
+    }
+
+    const p1 = mmToCanvasPx(entry.x_mm, entry.y_mm);
+    const p2 = mmToCanvasPx(entry.x_mm + entry.w_mm, entry.y_mm + entry.h_mm);
+    const left = Math.min(p1.x, p2.x);
+    const top = Math.min(p1.y, p2.y);
+    const width = Math.max(4, Math.abs(p2.x - p1.x));
+    const height = Math.max(4, Math.abs(p2.y - p1.y));
+
+    block.style.left = `${left}px`;
+    block.style.top = `${top}px`;
+    block.style.width = `${width}px`;
+    block.style.height = `${height}px`;
+
+    if (entry.kind === 'text') {
+      let content = block.querySelector('.box-content');
+      if (!content) {
+        content = document.createElement('div');
+        content.className = 'box-content';
+        block.appendChild(content);
+      }
+      const previewText = entry.value_mode === 'number'
+        ? (String(entry.value ?? '').trim() || '5')
+        : (entry.value || '');
+      content.textContent = previewText;
+      content.style.fontFamily = CJK_REGEX.test(previewText)
+        ? '"DFKai-SB", "BiauKai", "KaiTi", "標楷體", "PMingLiU", serif'
+        : '"Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans TC", "PingFang TC", "Segoe UI", sans-serif';
+      const baseFontPx = Math.max(1, (entry.font_size || 12) * viewport.scale);
+      content.style.textAlign = entry.align === 'R' ? 'right' : (entry.align === 'C' ? 'center' : 'left');
+
+      if (entry.value_mode === 'number') {
+        const innerW = Math.max(1, width - 4);
+        const innerH = Math.max(1, height - 2);
+        const textLen = Math.max(1, String(previewText || '').length);
+        const fitByWidth = innerW / (textLen * 0.62);
+        const fitByHeight = innerH * 0.9;
+        const dynamicPx = Math.max(6, Math.min(baseFontPx, fitByWidth, fitByHeight));
+        content.style.fontSize = `${dynamicPx}px`;
+        content.style.whiteSpace = 'nowrap';
+        content.style.wordBreak = 'normal';
+        content.style.lineHeight = '1';
+        content.style.letterSpacing = textLen >= 10 ? '-0.8px' : (textLen >= 7 ? '-0.4px' : '0');
+        block.style.display = 'flex';
+        block.style.alignItems = 'center';
+        content.style.height = 'auto';
+      } else {
+        content.style.fontSize = `${baseFontPx}px`;
+        content.style.whiteSpace = 'normal';
+        content.style.wordBreak = 'break-all';
+        content.style.lineHeight = '1.02';
+        content.style.letterSpacing = '-0.02em';
+        block.style.display = 'flex';
+        block.style.alignItems = 'center';
+        content.style.height = 'auto';
+      }
+    } else {
+      const oldContent = block.querySelector('.box-content');
+      if (oldContent) oldContent.remove();
+      block.style.display = 'block';
+      block.style.alignItems = 'initial';
+    }
+
+    block.classList.toggle('selected', key === activeKey);
+  }
+
+  function redrawMarkersFromMapping() {
+    clearMarkers();
+    for (const [key, entry] of Object.entries(mapping)) {
+      if (typeof entry.x_mm === 'number' && typeof entry.y_mm === 'number') {
+        if (entry.kind === 'block' || entry.kind === 'text') {
+          upsertBlock(key, entry);
+        } else {
+          upsertMarker(key, entry);
+        }
+      }
+    }
+  }
+
+  function renderList() {
+    list.innerHTML = '';
+    const keys = sortKeys();
+    if (keys.length === 0) {
+      list.innerHTML = '<div class="small">尚未新增任何欄位。</div>';
+      return;
+    }
+
+    keys.forEach((key) => {
+      const entry = mapping[key];
+      const item = document.createElement('div');
+      item.className = 'item';
+      item.classList.toggle('selected', key === activeKey);
+      item.addEventListener('click', (evt) => {
+        const tag = evt.target?.tagName;
+        if (tag === 'INPUT' || tag === 'SELECT' || tag === 'BUTTON' || tag === 'TEXTAREA' || evt.target?.closest('label')) return;
+        setActiveKey(key);
+        renderList();
+      });
+
+      const top = document.createElement('div');
+      top.className = 'top';
+      const left = document.createElement('div');
+
+      const selectWrap = document.createElement('label');
+      selectWrap.style.display = 'inline-flex';
+      selectWrap.style.alignItems = 'center';
+      selectWrap.style.gap = '6px';
+      selectWrap.style.marginRight = '8px';
+      const selectBox = document.createElement('input');
+      selectBox.type = 'checkbox';
+      selectBox.checked = checkedKeys.has(key);
+      selectBox.addEventListener('change', () => {
+        if (selectBox.checked) checkedKeys.add(key);
+        else checkedKeys.delete(key);
+        setActiveKey(key);
+        renderList();
+      });
+      const selectText = document.createElement('span');
+      selectText.className = 'miniLabel';
+      selectText.style.marginBottom = '0';
+      selectText.textContent = '選取';
+      selectWrap.appendChild(selectBox);
+      selectWrap.appendChild(selectText);
+      left.appendChild(selectWrap);
+
+      const chip = document.createElement('button');
+      chip.className = 'chipBtn';
+      const checkedText = entry.kind === 'check' ? (entry.checked === false ? '☐' : '☑') : '•';
+      chip.textContent = `${entry.order}. ${checkedText} ${key}`;
+      chip.addEventListener('click', () => {
+        setActiveKey(key);
+        if (entry.kind === 'check') {
+          entry.checked = entry.checked === false;
+          upsertMarker(key, entry);
+          updateOutput();
+          renderList();
+        }
+      });
+      left.appendChild(chip);
+
+      const right = document.createElement('div');
+      right.style.display = 'flex';
+      right.style.gap = '8px';
+      right.style.alignItems = 'center';
+      right.innerHTML = `<span class="tag">${entry.kind}</span>`;
+
+      const up = document.createElement('button');
+      up.textContent = '↑';
+      up.title = '往上移';
+      up.disabled = keys.indexOf(key) === 0;
+      up.addEventListener('click', () => moveOrder(key, -1));
+
+      const down = document.createElement('button');
+      down.textContent = '↓';
+      down.title = '往下移';
+      down.disabled = keys.indexOf(key) === keys.length - 1;
+      down.addEventListener('click', () => moveOrder(key, 1));
+
+      const del = document.createElement('button');
+      del.className = 'danger';
+      del.textContent = '刪除';
+      del.addEventListener('click', () => {
+        deleteByKeys([key]);
+      });
+
+      right.appendChild(up);
+      right.appendChild(down);
+      right.appendChild(del);
+      top.appendChild(left);
+      top.appendChild(right);
+      item.appendChild(top);
+
+      const grid = document.createElement('div');
+      grid.className = entry.kind === 'block' ? 'itemGrid single' : 'itemGrid';
+
+      const textWrap = document.createElement('div');
+      textWrap.innerHTML = '<div class="miniLabel">文字內容</div>';
+      const textInput = document.createElement('input');
+      textInput.type = entry.value_mode === 'number' ? 'number' : 'text';
+      textInput.value = entry.value || '';
+      textInput.placeholder = entry.kind === 'check' ? '預設 ✓' : (entry.value_mode === 'number' ? '請輸入數字' : '可留空');
+      textInput.addEventListener('keydown', (evt) => {
+        evt.stopPropagation();
+        if (evt.key === 'Enter') {
+          evt.preventDefault();
+          commitEntryValue(key, entry, textInput.value);
+          textInput.blur();
+        }
+      });
+      textInput.addEventListener('blur', () => {
+        textInput.value = entry.value || '';
+      });
+      textWrap.appendChild(textInput);
+      grid.appendChild(textWrap);
+
+      if (entry.kind !== 'block') {
+        const fsWrap = document.createElement('div');
+        fsWrap.innerHTML = '<div class="miniLabel">字級</div>';
+        const fsInput = document.createElement('select');
+        fsInput.innerHTML = FONT_SIZE_OPTIONS_HTML;
+        fsInput.value = String(Number.isFinite(entry.font_size) ? entry.font_size : 12);
+        if (!fsInput.value) fsInput.value = '12';
+        fsInput.addEventListener('change', () => {
+          const v = parseFloat(fsInput.value || '12');
+          entry.font_size = Number.isFinite(v) ? +v.toFixed(2) : 12;
+          if (entry.kind === 'text') upsertBlock(key, entry);
+          else upsertMarker(key, entry);
+          updateOutput();
+        });
+        fsWrap.appendChild(fsInput);
+        grid.appendChild(fsWrap);
+
+        const alignWrap = document.createElement('div');
+        alignWrap.innerHTML = '<div class="miniLabel">對齊</div>';
+        const alignSel = document.createElement('select');
+        alignSel.innerHTML = '<option value="L">L</option><option value="C">C</option><option value="R">R</option>';
+        alignSel.value = entry.align || 'L';
+        alignSel.addEventListener('change', () => {
+          entry.align = alignSel.value;
+          if (entry.kind === 'text') upsertBlock(key, entry);
+          updateOutput();
+        });
+        alignWrap.appendChild(alignSel);
+        grid.appendChild(alignWrap);
+      }
+
+      if (entry.kind === 'text') {
+        const modeWrap = document.createElement('div');
+        modeWrap.className = 'itemGrid single';
+        modeWrap.style.marginTop = '6px';
+        modeWrap.innerHTML = '<div class="miniLabel">內容型態</div>';
+        const modeSel = document.createElement('select');
+        modeSel.innerHTML = '<option value="text">文字</option><option value="number">數字</option>';
+        modeSel.value = entry.value_mode || 'text';
+        modeSel.addEventListener('change', () => {
+          entry.value_mode = modeSel.value;
+          if (entry.value_mode === 'number') {
+            entry.value = '5';
+          } else {
+            const chars = estimateCharsByWidth(entry.w_mm || 10, entry.font_size || 12);
+            entry.value = makeSampleChineseText(chars);
+          }
+          upsertBlock(key, entry);
+          updateOutput();
+          renderList();
+        });
+        modeWrap.appendChild(modeSel);
+        item.appendChild(modeWrap);
+      }
+
+      const noteWrap = document.createElement('div');
+      noteWrap.className = 'itemGrid single';
+      noteWrap.style.marginTop = '6px';
+      noteWrap.innerHTML = '<div class="miniLabel">排序說明（可填：第1個男廁、第2個女廁...）</div>';
+      const noteInput = document.createElement('input');
+      noteInput.type = 'text';
+      noteInput.value = entry.note || '';
+      noteInput.placeholder = '例如：第1個男廁';
+      noteInput.addEventListener('input', () => {
+        entry.note = noteInput.value;
+        updateOutput();
+      });
+      noteWrap.appendChild(noteInput);
+      item.appendChild(noteWrap);
+
+      item.appendChild(grid);
+      const coords = document.createElement('div');
+      coords.className = 'mono';
+      coords.style.marginTop = '6px';
+      const absSizeText = Number.isFinite(entry.font_size) ? `, 字級=${entry.font_size}pt(${ptToMmText(entry.font_size)}mm)` : '';
+      coords.textContent = `x=${entry.x_mm}, y=${entry.y_mm}${entry.w_mm ? `, w=${entry.w_mm}` : ''}${entry.h_mm ? `, h=${entry.h_mm}` : ''}${absSizeText}`;
+      item.appendChild(coords);
+      list.appendChild(item);
+    });
+  }
+
+  function addEntry(entry, key = null) {
+    const actualKey = key || nextKey();
+    entry.order = entry.order || (maxOrder() + 1);
+    mapping[actualKey] = entry;
+    setActiveKey(actualKey);
+    updateOutput();
+    renderList();
+    if (entry.kind === 'block' || entry.kind === 'text') upsertBlock(actualKey, entry);
+    else upsertMarker(actualKey, entry);
+    return actualKey;
+  }
+
+  function commitEntryValue(key, entry, rawValue) {
+    const normalized = String(rawValue ?? '');
+    entry.value = entry.value_mode === 'number' ? normalized.trim() : normalized;
+    if (entry.kind === 'check') upsertMarker(key, entry);
+    if (entry.kind === 'text') upsertBlock(key, entry);
+    updateOutput();
+  }
+
+  function importMappingObject(imported) {
+    if (!imported || typeof imported !== 'object' || Array.isArray(imported)) {
+      throw new Error('匯入失敗：格式必須是 JSON 物件。');
+    }
+
+    for (const key of Object.keys(mapping)) delete mapping[key];
+    checkedKeys.clear();
+    activeKey = null;
+
+    let orderCounter = 1;
+    for (const [key, raw] of Object.entries(imported)) {
+      if (!raw || typeof raw !== 'object') continue;
+      const kind = raw.kind || 'check';
+      const entry = { ...raw };
+      entry.kind = ['check', 'text', 'block'].includes(kind) ? kind : 'check';
+      entry.x_mm = roundMm(Number(entry.x_mm || 0));
+      entry.y_mm = roundMm(Number(entry.y_mm || 0));
+      if (entry.kind !== 'check') {
+        entry.w_mm = roundMm(Number(entry.w_mm || 10));
+        entry.h_mm = roundMm(Number(entry.h_mm || 5));
+      }
+      if (!Number.isFinite(entry.font_size)) entry.font_size = 12;
+      if (!entry.align) entry.align = 'L';
+      if (entry.kind === 'text' && !entry.value_mode) entry.value_mode = 'text';
+      if (entry.kind === 'text' && (entry.value === undefined || entry.value === null || entry.value === '')) {
+        if (entry.value_mode === 'number') entry.value = '5';
+        else {
+          const chars = estimateCharsByWidth(entry.w_mm || 10, entry.font_size || 12);
+          entry.value = makeSampleChineseText(chars);
+        }
+      }
+      if (entry.kind === 'check' && (entry.value === undefined || entry.value === null || entry.value === '')) {
+        entry.value = '✓';
+      }
+      entry.order = Number.isFinite(entry.order) ? entry.order : orderCounter;
+      orderCounter += 1;
+      mapping[key] = entry;
+    }
+
+    redrawMarkersFromMapping();
+    updateOutput();
+    renderList();
+    lastXY.textContent = '—';
+    hideGuides();
+  }
+
+  function arm() {
+    armed = true;
+    btnArm.classList.add('active');
+    updateArmStatusText();
+  }
+
+  function cancelArm() {
+    armed = false;
+    btnArm.classList.remove('active');
+    if (blockDraft?.el) blockDraft.el.remove();
+    blockDraft = null;
+    updateArmStatusText();
+  }
+
+  function toggleArm() {
+    if (armed) cancelArm();
+    else arm();
+  }
+
+  function getClickPxOnCanvas(evt) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+  }
+
+  async function loadAndRender() {
+    try {
+      errBox.textContent = '';
+      if (!window.pdfjsLib) throw new Error('pdf.js 載入中或失敗，請確認網路連線後重整一次。');
+
+      const file = pdfFile.files?.[0];
+      if (!file) {
+        pdfFile.click();
+        return;
+      }
+
+      const bytes = await file.arrayBuffer();
+      pdfDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
+
+      const p = Math.min(Math.max(parseInt(pageNo.value || '1', 10), 1), pdfDoc.numPages);
+      pageNo.value = p;
+      currentPage = await pdfDoc.getPage(p);
+
+      const integerScale = Math.max(1, parseInt(scaleEl.value || '2', 10));
+      scaleEl.value = String(integerScale);
+      viewport = currentPage.getViewport({ scale: integerScale });
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+
+      await currentPage.render({ canvasContext: ctx, viewport }).promise;
+      redrawMarkersFromMapping();
+
+      const view = currentPage.view;
+      const wmmPage = (view[2] - view[0]) * PT_TO_MM;
+      const hmmPage = (view[3] - view[1]) * PT_TO_MM;
+      pageSize.textContent = `${wmmPage.toFixed(2)} × ${hmmPage.toFixed(2)} mm`;
+      updateArmStatusText();
+    } catch (err) {
+      errBox.textContent = String(err?.message || err);
+    }
+  }
+
+  function fitScale() {
+    if (!currentPage) return;
+    const main = document.querySelector('.main');
+    const maxW = main.clientWidth - 60;
+    const v0 = currentPage.getViewport({ scale: 1 });
+    const s = Math.max(1, Math.min(8, Math.round(maxW / v0.width)));
+    scaleEl.value = String(s);
+    loadAndRender();
+  }
+
+  function beginBlockDraft(evt) {
+    if (!armed || !viewport || (fieldType.value !== 'block' && fieldType.value !== 'text')) return;
+    const pos = getClickPxOnCanvas(evt);
+    const x = Math.max(0, Math.min(canvas.width, pos.x));
+    const y = Math.max(0, Math.min(canvas.height, pos.y));
+    const preview = document.createElement('div');
+    preview.className = 'block-preview';
+    wrap.appendChild(preview);
+    blockDraft = { startX: x, startY: y, endX: x, endY: y, el: preview, pointerId: evt.pointerId };
+    canvas.setPointerCapture(evt.pointerId);
+  }
+
+  function moveBlockDraft(evt) {
+    if (!blockDraft || blockDraft.pointerId !== evt.pointerId) return;
+    const pos = getClickPxOnCanvas(evt);
+    blockDraft.endX = Math.max(0, Math.min(canvas.width, pos.x));
+    blockDraft.endY = Math.max(0, Math.min(canvas.height, pos.y));
+    const left = Math.min(blockDraft.startX, blockDraft.endX);
+    const top = Math.min(blockDraft.startY, blockDraft.endY);
+    const width = Math.max(1, Math.abs(blockDraft.endX - blockDraft.startX));
+    const height = Math.max(1, Math.abs(blockDraft.endY - blockDraft.startY));
+    blockDraft.el.style.left = `${left}px`;
+    blockDraft.el.style.top = `${top}px`;
+    blockDraft.el.style.width = `${width}px`;
+    blockDraft.el.style.height = `${height}px`;
+  }
+
+  function endBlockDraft(evt) {
+    if (!blockDraft || blockDraft.pointerId !== evt.pointerId) return;
+    moveBlockDraft(evt);
+
+    const left = Math.min(blockDraft.startX, blockDraft.endX);
+    const top = Math.min(blockDraft.startY, blockDraft.endY);
+    const widthPx = Math.abs(blockDraft.endX - blockDraft.startX);
+    const heightPx = Math.abs(blockDraft.endY - blockDraft.startY);
+
+    if (widthPx >= 3 && heightPx >= 3) {
+      const mm1 = canvasPxToMm(left, top);
+      const mm2 = canvasPxToMm(left + widthPx, top + heightPx);
+      const autoW = mm2.x_mm - mm1.x_mm;
+      const autoH = mm2.y_mm - mm1.y_mm;
+      const userW = parseFloat(wmm.value || '');
+      const userH = parseFloat(hmm.value || '');
+      const d = parseDxy();
+      const kind = fieldType.value;
+      const fs = parseFloat(fontSize.value || '12');
+      const entry = {
+        kind,
+        x_mm: roundMm(mm1.x_mm),
+        y_mm: roundMm(mm1.y_mm),
+        value: '',
+        value_mode: kind === 'text' ? valueMode.value : 'text',
+        align: align.value,
+        font_size: +fs.toFixed(2),
+        w_mm: roundMm(Number.isFinite(userW) && userW > 0 ? userW : autoW),
+        h_mm: roundMm(Number.isFinite(userH) && userH > 0 ? userH : autoH),
+        note: ''
+      };
+      const snapped = applySnap(entry.x_mm, entry.y_mm, null);
+      entry.x_mm = roundMm(snapped.x_mm);
+      entry.y_mm = roundMm(snapped.y_mm);
+      if (kind === 'text') {
+        if (entry.value_mode === 'number') {
+          entry.value = '5';
+        } else {
+          const chars = estimateCharsByWidth(entry.w_mm, entry.font_size);
+          entry.value = makeSampleChineseText(chars);
+        }
+      }
+      if (d) Object.assign(entry, d);
+      const key = addEntry(entry);
+      lastXY.textContent = `${key}: x=${mmText(entry.x_mm)}mm, y=${mmText(entry.y_mm)}mm`;
+    }
+
+    blockDraft.el.remove();
+    try {
+      canvas.releasePointerCapture(evt.pointerId);
+    } catch {}
+    hideGuides();
+    blockDraft = null;
+  }
+
+  function cloneSelected() {
+    const key = activeKey || [...checkedKeys][0];
+    if (!key || !mapping[key]) return;
+    const source = mapping[key];
+    const cloned = JSON.parse(JSON.stringify(source));
+    cloned.order = maxOrder() + 1;
+    cloned.x_mm = roundMm((source.x_mm || 0) + 2);
+    cloned.y_mm = roundMm((source.y_mm || 0) + 2);
+    const newKey = addEntry(cloned);
+    checkedKeys.clear();
+    checkedKeys.add(newKey);
+    renderList();
+  }
+
+  function deleteCheckedOrActive() {
+    const keys = checkedKeys.size ? [...checkedKeys] : (activeKey ? [activeKey] : []);
+    if (!keys.length) return;
+    deleteByKeys(keys);
+  }
+
+  function moveActiveBy(dxMm, dyMm) {
+    if (!activeKey || !mapping[activeKey] || !viewport) return;
+    const entry = mapping[activeKey];
+    const nextX = entry.x_mm + dxMm;
+    const nextY = entry.y_mm + dyMm;
+    const snapped = applySnap(nextX, nextY, activeKey, { useGrid: false });
+
+    const widthMm = entry.kind === 'check' ? 0 : (entry.w_mm || 0);
+    const heightMm = entry.kind === 'check' ? 0 : (entry.h_mm || 0);
+    const maxXmm = (canvas.width / viewport.scale) * PT_TO_MM - widthMm;
+    const maxYmm = (canvas.height / viewport.scale) * PT_TO_MM - heightMm;
+
+    entry.x_mm = roundMm(Math.max(0, Math.min(maxXmm, snapped.x_mm)));
+    entry.y_mm = roundMm(Math.max(0, Math.min(maxYmm, snapped.y_mm)));
+
+    if (entry.kind === 'check') upsertMarker(activeKey, entry);
+    else upsertBlock(activeKey, entry);
+
+    lastXY.textContent = `${activeKey}: x=${mmText(entry.x_mm)}mm, y=${mmText(entry.y_mm)}mm`;
+    updateOutput();
+  }
+
+  canvas.addEventListener('click', (evt) => {
+    if (!armed || !viewport) return;
+    const kind = fieldType.value;
+    if (kind !== 'check') return;
+    const fs = parseFloat(fontSize.value || '12');
+    const d = parseDxy();
+
+    const pos = getClickPxOnCanvas(evt);
+    const mm = canvasPxToMm(pos.x, pos.y);
+
+    const entry = {
+      kind,
+      x_mm: roundMm(mm.x_mm),
+      y_mm: roundMm(mm.y_mm),
+      value: '✓',
+      value_mode: kind === 'text' ? valueMode.value : 'text',
+      checked: kind === 'check' ? true : undefined,
+      align: align.value,
+      font_size: +fs.toFixed(2),
+      note: ''
+    };
+    const snapped = applySnap(entry.x_mm, entry.y_mm, null);
+    entry.x_mm = roundMm(snapped.x_mm);
+    entry.y_mm = roundMm(snapped.y_mm);
+
+    if (kind === 'text') {
+      entry.align = align.value;
+      const userW = parseFloat(wmm.value || '');
+      if (Number.isFinite(userW) && userW > 0) entry.w_mm = roundMm(userW);
+      if (entry.value_mode === 'number' && Number.isNaN(Number(entry.value))) entry.value = '';
+    }
+    if (d) Object.assign(entry, d);
+
+    const key = addEntry(entry);
+    lastXY.textContent = `${key}: x=${mmText(entry.x_mm)}mm, y=${mmText(entry.y_mm)}mm`;
+  });
+
+  canvas.addEventListener('pointerdown', beginBlockDraft);
+  canvas.addEventListener('pointermove', moveBlockDraft);
+  canvas.addEventListener('pointerup', endBlockDraft);
+  canvas.addEventListener('pointercancel', endBlockDraft);
+
+  btnLoad.addEventListener('click', loadAndRender);
+  btnToggleSide.addEventListener('click', () => {
+    document.body.classList.toggle('sidebar-collapsed');
+    syncSidebarButton();
+  });
+  btnSnapToggle.addEventListener('click', toggleSnapAssist);
+  snapStep.addEventListener('change', updateSnapStepOnly);
+  pdfFile.addEventListener('change', () => {
+    if (pdfFile.files?.[0]) loadAndRender();
+  });
+  btnFit.addEventListener('click', fitScale);
+  btnArm.addEventListener('click', toggleArm);
+  fieldType.addEventListener('change', updateArmStatusText);
+  btnDeleteSelected.addEventListener('click', () => {
+    deleteCheckedOrActive();
+  });
+
+  btnCopy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(out.value || '');
+      btnCopy.textContent = '已複製';
+      setTimeout(() => { btnCopy.textContent = '複製'; }, 800);
+    } catch {
+      alert('複製失敗，請手動複製');
+    }
+  });
+
+  btnDownload.addEventListener('click', () => {
+    const blob = new Blob([out.value || '{}'], { type: 'application/json;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'mapping.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
+
+  btnImport.addEventListener('click', () => {
+    importFile.click();
+  });
+
+  importFile.addEventListener('change', async () => {
+    const file = importFile.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      importMappingObject(parsed);
+    } catch (err) {
+      alert(`匯入失敗：${err?.message || err}`);
+    } finally {
+      importFile.value = '';
+    }
+  });
+
+  btnClear.addEventListener('click', () => {
+    if (!confirm('確定清空全部 mapping？')) return;
+    for (const key of Object.keys(mapping)) delete mapping[key];
+    checkedKeys.clear();
+    activeKey = null;
+    clearMarkers();
+    hideGuides();
+    updateOutput();
+    renderList();
+    lastXY.textContent = '—';
+  });
+
+  document.addEventListener('keydown', (evt) => {
+    const target = evt.target;
+    const isTextInput = target && target.tagName === 'INPUT' && ['text', 'number', 'search', 'email', 'url', 'password'].includes((target.type || '').toLowerCase());
+    const inEditor = !!(isTextInput || (target && (target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')));
+    const moveKey = activeKey || [...checkedKeys][0] || null;
+    if (evt.ctrlKey && (evt.key === 'd' || evt.key === 'D')) {
+      evt.preventDefault();
+      cloneSelected();
+      return;
+    }
+    if ((evt.key === 'Delete' || evt.key === 'Backspace') && (checkedKeys.size || activeKey)) {
+      evt.preventDefault();
+      deleteCheckedOrActive();
+      return;
+    }
+    if (!inEditor && (evt.key === 'Delete' || evt.key === 'Backspace')) {
+      evt.preventDefault();
+    }
+
+    if (!inEditor && moveKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(evt.key)) {
+      evt.preventDefault();
+      setActiveKey(moveKey);
+      const baseStep = Math.max(0.05, parseFloat(nudgeStep.value || '0.2'));
+      const step = evt.shiftKey ? baseStep * 5 : baseStep;
+      if (evt.key === 'ArrowUp') moveActiveBy(0, -step);
+      if (evt.key === 'ArrowDown') moveActiveBy(0, step);
+      if (evt.key === 'ArrowLeft') moveActiveBy(-step, 0);
+      if (evt.key === 'ArrowRight') moveActiveBy(step, 0);
+      renderList();
+    }
+  });
+
+  document.addEventListener('keyup', (evt) => {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(evt.key)) {
+      hideGuides();
+    }
+  });
+
+  fontSize.innerHTML = FONT_SIZE_OPTIONS_HTML;
+  fontSize.value = '12';
+  updateSnapStepOnly();
+  syncSnapToggleButton();
+  syncSidebarButton();
+
+  updateOutput();
+  renderList();
+</script>
+</body>
+</html>
