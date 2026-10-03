@@ -466,6 +466,9 @@
   const blocksByKey = new Map();
   const checkedKeys = new Set();
   const CJK_REGEX = /[\u3400-\u9FFF\uF900-\uFAFF]/;
+  const MAPPING_FORMAT = 'ping-pdf-mapping';
+  const MAPPING_VERSION = 2;
+  const docMeta = { source_pdf: null, pages: [] };
 
   const snapConfig = {
     enabled: false,
@@ -764,8 +767,47 @@
     return { x_mm: x_pt * PT_TO_MM, y_mm: y_pt * PT_TO_MM };
   }
 
+  // 內部座標：check 存中心；text/block 存左上角（互動數學維持原狀）。
+  // 輸出座標：一律改成「中心點」，讓 (x,y) 語意統一。
+  function outputCenter(entry) {
+    if ((entry.kind === 'text' || entry.kind === 'block') &&
+        Number.isFinite(entry.w_mm) && Number.isFinite(entry.h_mm)) {
+      return { x: roundMm(entry.x_mm + entry.w_mm / 2), y: roundMm(entry.y_mm + entry.h_mm / 2) };
+    }
+    return { x: entry.x_mm, y: entry.y_mm };
+  }
+
+  function toOutputField(entry) {
+    const c = outputCenter(entry);
+    const o = { ...entry, x_mm: c.x, y_mm: c.y };
+    // 移除各類型用不到的欄位
+    if (entry.kind === 'check' || entry.kind === 'block') {
+      delete o.value_mode;
+      delete o.align;
+    }
+    return o;
+  }
+
+  function buildMeta() {
+    return {
+      format: MAPPING_FORMAT,
+      version: MAPPING_VERSION,
+      unit: 'mm',
+      origin: 'top-left',
+      anchor: 'center',
+      source_pdf: docMeta.source_pdf || null,
+      pages: docMeta.pages
+    };
+  }
+
+  function buildOutputObject() {
+    const fields = {};
+    for (const [key, entry] of Object.entries(mapping)) fields[key] = toOutputField(entry);
+    return { meta: buildMeta(), fields };
+  }
+
   function updateOutput() {
-    out.value = JSON.stringify(mapping, null, 2);
+    out.value = JSON.stringify(buildOutputObject(), null, 2);
   }
 
   function setStatus(text, isOn) {
@@ -1244,7 +1286,8 @@
       coords.className = 'mono';
       coords.style.marginTop = '6px';
       const absSizeText = Number.isFinite(entry.font_size) ? `, 字級=${entry.font_size}pt(${ptToMmText(entry.font_size)}mm)` : '';
-      coords.textContent = `x=${entry.x_mm}, y=${entry.y_mm}${entry.w_mm ? `, w=${entry.w_mm}` : ''}${entry.h_mm ? `, h=${entry.h_mm}` : ''}${absSizeText}`;
+      const oc = outputCenter(entry);
+      coords.textContent = `x=${oc.x}, y=${oc.y}（中心）${entry.w_mm ? `, w=${entry.w_mm}` : ''}${entry.h_mm ? `, h=${entry.h_mm}` : ''}${absSizeText}`;
       item.appendChild(coords);
       list.appendChild(item);
     });
@@ -1271,9 +1314,19 @@
     updateOutput();
   }
 
-  function importMappingObject(imported) {
-    if (!imported || typeof imported !== 'object' || Array.isArray(imported)) {
+  function importMappingObject(parsed) {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('匯入失敗：格式必須是 JSON 物件。');
+    }
+
+    // 支援兩種格式：v2 的 { meta, fields } 包裝，或舊版扁平 { f_001: {...} }
+    const hasWrapper = parsed.fields && typeof parsed.fields === 'object' && !Array.isArray(parsed.fields);
+    const imported = hasWrapper ? parsed.fields : parsed;
+    const meta = hasWrapper ? (parsed.meta || {}) : {};
+    const isCenterFmt = Number(meta.version) >= 2 || meta.anchor === 'center';
+    if (hasWrapper) {
+      if (meta.source_pdf) docMeta.source_pdf = meta.source_pdf;
+      if (Array.isArray(meta.pages) && meta.pages.length) docMeta.pages = meta.pages;
     }
 
     for (const key of Object.keys(mapping)) delete mapping[key];
@@ -1293,6 +1346,11 @@
       if (entry.kind !== 'check') {
         entry.w_mm = roundMm(Number(entry.w_mm || 10));
         entry.h_mm = roundMm(Number(entry.h_mm || 5));
+        // v2 的 text/block 存的是中心點 → 轉回內部使用的左上角
+        if (isCenterFmt) {
+          entry.x_mm = roundMm(entry.x_mm - entry.w_mm / 2);
+          entry.y_mm = roundMm(entry.y_mm - entry.h_mm / 2);
+        }
       }
       if (!Number.isFinite(entry.font_size)) entry.font_size = 12;
       if (!entry.align) entry.align = 'L';
@@ -1389,6 +1447,23 @@
     renderPage(n);
   }
 
+  async function collectDocMeta(fileName) {
+    docMeta.source_pdf = fileName || docMeta.source_pdf || null;
+    const pages = [];
+    if (pdfDoc) {
+      for (let i = 1; i <= pdfDoc.numPages; i += 1) {
+        const pg = await pdfDoc.getPage(i);
+        const v = pg.view;
+        pages.push({
+          page: i,
+          width_mm: +((v[2] - v[0]) * PT_TO_MM).toFixed(2),
+          height_mm: +((v[3] - v[1]) * PT_TO_MM).toFixed(2)
+        });
+      }
+    }
+    docMeta.pages = pages;
+  }
+
   async function loadAndRender() {
     try {
       errBox.textContent = '';
@@ -1402,6 +1477,8 @@
 
       const bytes = await file.arrayBuffer();
       pdfDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
+
+      await collectDocMeta(file.name);
 
       const p = Math.min(Math.max(parseInt(pageNo.value || '1', 10), 1), pdfDoc.numPages);
       await renderPage(p);
