@@ -233,6 +233,11 @@
       font-size:12px;
       line-height:1;
     }
+    .armBtn {
+      padding:11px 24px;
+      font-size:14px;
+      font-weight:800;
+    }
     .row-inline { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
     .field-inline { display:flex; align-items:center; gap:6px; flex:1; min-width:120px; }
     .field-inline > label { margin:0; flex:0 0 auto; white-space:nowrap; }
@@ -263,12 +268,12 @@
         <div class="field-inline">
           <label>頁碼</label>
           <button id="btnPrevPage" class="btn-sm" title="上一頁" style="flex:0 0 auto;">◀</button>
-          <input id="pageNo" type="number" min="1" value="1" style="flex:0 0 auto; width:48px; text-align:center;"/>
+          <input id="pageNo" type="number" min="1" value="1" style="flex:0 0 auto; width:88px; text-align:center;"/>
           <button id="btnNextPage" class="btn-sm" title="下一頁" style="flex:0 0 auto;">▶</button>
         </div>
         <div class="field-inline">
           <label>縮放</label>
-          <input id="scale" type="number" min="1" max="8" step="1" value="2" style="flex:0 0 auto; width:56px;"/>
+          <input id="scale" type="number" min="1" max="8" step="1" value="2" style="flex:0 0 auto; width:96px;"/>
         </div>
       </div>
       <div class="row-inline" style="margin-top:10px;">
@@ -285,7 +290,7 @@
         <span class="modeBadge" id="modeBanner">新增模式</span>
       </div>
 
-      <button class="primary" id="btnArm">定位</button>
+      <button class="primary armBtn" id="btnArm">定位</button>
 
       <div class="row-inline" style="margin-top:10px;">
         <div class="field-inline">
@@ -316,30 +321,26 @@
         </div>
       </div>
 
-      <div id="symbolRow" style="margin-top:10px;">
+      <div id="symbolRow" class="field-inline" style="margin-top:10px;">
         <label>符號</label>
-        <div id="symbolPalette" class="btnrow" style="gap:6px; align-items:center;"></div>
+        <div id="symbolPalette" class="btnrow" style="gap:6px; align-items:center; flex:1;"></div>
       </div>
 
       <div class="row" style="margin-top:10px;">
-        <div>
-          <select id="align">
-            <option value="L">靠左</option>
-            <option value="C">置中</option>
-            <option value="R">靠右</option>
-          </select>
-        </div>
-        <div>
-          <select id="valueMode">
-            <option value="text">文字</option>
-            <option value="number">數字</option>
-          </select>
-        </div>
+        <select id="align">
+          <option value="L">靠左</option>
+          <option value="C">置中</option>
+          <option value="R">靠右</option>
+        </select>
+        <select id="valueMode">
+          <option value="text">文字</option>
+          <option value="number">數字</option>
+        </select>
+        <button id="btnSnapToggle">對齊：關</button>
       </div>
 
-      <div class="snapRow">
-        <button id="btnSnapToggle">對齊：關</button>
-        <div style="min-width:80px;">
+      <div class="row-inline" style="margin-top:10px;">
+        <div class="field-inline">
           <label>顆粒(mm)</label>
           <select id="snapStep">
             <option value="0.5">0.5</option>
@@ -348,16 +349,16 @@
             <option value="5">5</option>
           </select>
         </div>
-        <div style="min-width:80px;">
-          <label>步距</label>
+        <div class="field-inline">
+          <label>步距(mm)</label>
           <select id="nudgeStep">
-            <option value="0.1">0.1 mm</option>
-            <option value="0.2" selected>0.2 mm</option>
-            <option value="0.5">0.5 mm</option>
-            <option value="1">1 mm</option>
+            <option value="0.1">0.1</option>
+            <option value="0.2" selected>0.2</option>
+            <option value="0.5">0.5</option>
+            <option value="1">1</option>
           </select>
         </div>
-        <button class="danger" id="btnDeleteSelected">刪除選取</button>
+        <button class="danger" id="btnDeleteSelected" style="flex:0 0 auto;">刪除選取</button>
       </div>
       <div class="small" style="margin-top:10px;">
         Ctrl+D 複製、Delete 刪除、Esc 取消（選取／定位）
@@ -773,7 +774,7 @@
   }
 
   function syncSymbolRowVisibility() {
-    symbolRow.style.display = fieldType.value === 'check' ? 'block' : 'none';
+    symbolRow.style.display = fieldType.value === 'check' ? 'flex' : 'none';
   }
 
   function updateArmStatusText() {
