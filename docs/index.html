@@ -310,17 +310,13 @@
         <button class="primary" id="btnLoad">載入/重繪</button>
         <button id="btnFit">自動縮放</button>
       </div>
-      <div class="small" style="margin-top:10px;">
-        直接開啟本頁即可使用（不需要另外放 pdfjs 檔案）。
-      </div>
       <div id="err" class="err" style="margin-top:10px;"></div>
     </div>
 
     <div class="card">
-      <h2>② 新增／修改欄位（自動編號）</h2>
-      <div class="small">key 會自動產生（如 field_001、field_002）。</div>
+      <h2>② 新增／修改欄位</h2>
 
-      <div class="modeBanner" id="modeBanner">新增模式：上方「字級／對齊／符號」是「新建立」欄位的預設值。</div>
+      <div class="modeBanner" id="modeBanner">新增模式</div>
 
       <button class="primary bigArm" id="btnArm">定位（新增欄位）：點我後，到右邊 PDF 上點一下／拖一下</button>
       <div class="armHint" id="armHint">提示：先選好「類型」與「字級」，再按「定位」，然後到 PDF 上操作。</div>
@@ -335,7 +331,7 @@
           </select>
         </div>
         <div>
-          <label>字級（絕對 pt）</label>
+          <label>字級(pt)</label>
           <select id="fontSize">
             <option value="8">8</option>
             <option value="8.5">8.5</option>
@@ -355,14 +351,12 @@
       </div>
 
       <div id="symbolRow" style="margin-top:10px;">
-        <label>打勾符號（check 用，點一下選取）</label>
+        <label>符號</label>
         <div id="symbolPalette" class="btnrow" style="gap:6px; align-items:center;"></div>
-        <div class="small" style="margin-top:4px;">選取的符號會套用到下一個新增的 check。可新增／編輯／刪除。</div>
       </div>
 
       <div class="row" style="margin-top:10px;">
         <div>
-          <label>對齊</label>
           <select id="align">
             <option value="L">靠左</option>
             <option value="C">置中</option>
@@ -370,7 +364,6 @@
           </select>
         </div>
         <div>
-          <label>內容型態（text）</label>
           <select id="valueMode">
             <option value="text">文字</option>
             <option value="number">數字</option>
@@ -378,13 +371,10 @@
         </div>
       </div>
 
-      <div class="btnrow" style="margin-top:10px;">
-        <button class="danger" id="btnDeleteSelected">刪除選取</button>
-      </div>
       <div class="snapRow">
-        <button id="btnSnapToggle">吸附/對齊：關</button>
-        <div style="min-width:110px;">
-          <label>顆粒（mm）</label>
+        <button id="btnSnapToggle">對齊關</button>
+        <div style="min-width:80px;">
+          <label>顆粒(mm)</label>
           <select id="snapStep">
             <option value="0.5">0.5</option>
             <option value="1" selected>1</option>
@@ -392,8 +382,8 @@
             <option value="5">5</option>
           </select>
         </div>
-        <div style="min-width:110px;">
-          <label>方向鍵步距</label>
+        <div style="min-width:80px;">
+          <label>步距</label>
           <select id="nudgeStep">
             <option value="0.1">0.1 mm</option>
             <option value="0.2" selected>0.2 mm</option>
@@ -401,11 +391,10 @@
             <option value="1">1 mm</option>
           </select>
         </div>
+        <button class="danger btn-sm" id="btnDeleteSelected">刪除選取</button>
       </div>
       <div class="small" style="margin-top:10px;">
-        最簡流程：check 用點一下；text/block 用拖曳拉方框。<br/>
-        選取某個標記後，上方「字級／對齊／符號」會改到它身上；要回到「新增預設」按 Esc 取消選取。<br/>
-        快捷鍵：Ctrl+D 複製選取、Delete 刪除選取、Esc 取消選取／取消定位。
+        Ctrl+D 複製、Delete 刪除、Esc 取消（選取／定位）
       </div>
     </div>
 
@@ -426,7 +415,7 @@
         <button class="danger" id="btnClear">清空</button>
       </div>
       <input id="importFile" type="file" accept="application/json" style="display:none"/>
-      <div class="historyTitle">歷史清單（上方每個標記，這裡都有一個對應按鍵）</div>
+      <div class="historyTitle">歷史清單：選取欄位後，用上方面板改字級／對齊／符號</div>
       <div class="list" id="list"></div>
     </div>
   </aside>
@@ -762,7 +751,7 @@
   function syncSnapToggleButton() {
     btnSnapToggle.classList.toggle('primary', snapConfig.enabled);
     btnSnapToggle.classList.toggle('active', snapConfig.enabled);
-    btnSnapToggle.textContent = `吸附/對齊：${snapConfig.enabled ? '開' : '關'}`;
+    btnSnapToggle.textContent = `對齊${snapConfig.enabled ? '開' : '關'}`;
   }
 
   function toggleSnapAssist() {
@@ -793,8 +782,8 @@
 
   function nextKey() {
     let i = 1;
-    while (mapping[`field_${String(i).padStart(3, '0')}`]) i += 1;
-    return `field_${String(i).padStart(3, '0')}`;
+    while (mapping[`f_${String(i).padStart(3, '0')}`]) i += 1;
+    return `f_${String(i).padStart(3, '0')}`;
   }
 
   function mmToCanvasPx(x_mm, y_mm) {
@@ -861,10 +850,10 @@
     if (activeKey && mapping[activeKey]) {
       const entry = mapping[activeKey];
       modeBanner.classList.add('editing');
-      modeBanner.textContent = `🟢 修改中：${activeKey}（${entry.kind}）— 改上方「字級／對齊／符號」會直接套用到它。按 Esc 取消選取回到新增。`;
+      modeBanner.textContent = `🟢 修改中：${activeKey}（${entry.kind}）`;
     } else {
       modeBanner.classList.remove('editing');
-      modeBanner.textContent = '新增模式：上方「字級／對齊／符號」是「新建立」欄位的預設值。';
+      modeBanner.textContent = '新增模式';
     }
   }
 
@@ -1257,7 +1246,6 @@
       grid.className = 'itemGrid single';
 
       const textWrap = document.createElement('div');
-      textWrap.innerHTML = '<div class="miniLabel">文字內容（字級／對齊／符號／型態請用上方面板，先在此清單或 PDF 上選取該欄位）</div>';
       const textInput = document.createElement('input');
       textInput.type = entry.value_mode === 'number' ? 'number' : 'text';
       textInput.value = entry.value || '';
@@ -1279,11 +1267,11 @@
       const noteWrap = document.createElement('div');
       noteWrap.className = 'itemGrid single';
       noteWrap.style.marginTop = '6px';
-      noteWrap.innerHTML = '<div class="miniLabel">排序說明（可填：第1個男廁、第2個女廁...）</div>';
+      noteWrap.innerHTML = '<div class="miniLabel">名稱</div>';
       const noteInput = document.createElement('input');
       noteInput.type = 'text';
       noteInput.value = entry.note || '';
-      noteInput.placeholder = '例如：第1個男廁';
+      noteInput.placeholder = '第一個男廁';
       noteInput.addEventListener('input', () => {
         entry.note = noteInput.value;
         updateOutput();
