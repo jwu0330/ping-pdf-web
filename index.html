@@ -233,49 +233,17 @@
       font-size:12px;
       line-height:1;
     }
-    .bigArm {
-      display:block;
-      width:100%;
-      margin-top:10px;
-      padding:12px;
-      font-size:14px;
-      font-weight:800;
+    .row-inline { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .field-inline { display:flex; align-items:center; gap:6px; flex:1; min-width:120px; }
+    .field-inline > label { margin:0; flex:0 0 auto; white-space:nowrap; }
+    .field-inline > select { flex:1; width:auto; min-width:0; }
+    .cardHead { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
+    .cardHead h2 { margin:0; }
+    .modeBadge {
+      font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px;
+      background:#f2e7d1; border:1px solid #cdb48a; color:#6b5838; white-space:nowrap;
     }
-    .bigArm.active {
-      background:#d9f3e0;
-      border-color:#5caf71;
-      color:#1d5f2d;
-      box-shadow:0 0 0 3px rgba(92,175,113,0.25);
-    }
-    .armHint {
-      margin-top:8px;
-      font-size:12px;
-      color:var(--muted);
-      border-left:3px solid var(--line);
-      padding-left:8px;
-      line-height:1.4;
-    }
-    .armHint.on {
-      color:#1d5f2d;
-      border-left-color:#5caf71;
-      font-weight:700;
-    }
-    .modeBanner {
-      margin-top:8px;
-      padding:8px 10px;
-      border-radius:8px;
-      font-size:12px;
-      font-weight:700;
-      line-height:1.4;
-      background:#f2e7d1;
-      border:1px solid #cdb48a;
-      color:#6b5838;
-    }
-    .modeBanner.editing {
-      background:#d9f3e0;
-      border-color:#5caf71;
-      color:#1d5f2d;
-    }
+    .modeBadge.editing { background:#d9f3e0; border-color:#5caf71; color:#1d5f2d; }
   </style>
 </head>
 <body>
@@ -291,22 +259,20 @@
       <h2>① 載入 PDF</h2>
       <label>PDF 檔案</label>
       <input id="pdfFile" type="file" accept="application/pdf"/>
-      <div class="row" style="margin-top:10px;">
-        <div>
+      <div class="row-inline" style="margin-top:10px;">
+        <div class="field-inline">
           <label>頁碼</label>
-          <div style="display:flex; gap:4px; align-items:center;">
-            <button id="btnPrevPage" class="btn-sm" title="上一頁" style="flex:0 0 auto;">◀</button>
-            <input id="pageNo" type="number" min="1" value="1" style="text-align:center;"/>
-            <button id="btnNextPage" class="btn-sm" title="下一頁" style="flex:0 0 auto;">▶</button>
-          </div>
+          <button id="btnPrevPage" class="btn-sm" title="上一頁" style="flex:0 0 auto;">◀</button>
+          <input id="pageNo" type="number" min="1" value="1" style="flex:0 0 auto; width:48px; text-align:center;"/>
+          <button id="btnNextPage" class="btn-sm" title="下一頁" style="flex:0 0 auto;">▶</button>
         </div>
-        <div>
-          <label>縮放（整數）</label>
-          <input id="scale" type="number" min="1" max="8" step="1" value="2"/>
+        <div class="field-inline">
+          <label>縮放</label>
+          <input id="scale" type="number" min="1" max="8" step="1" value="2" style="flex:0 0 auto; width:56px;"/>
         </div>
       </div>
-      <div class="small" id="pageIndicator" style="margin-top:8px;">第 1 頁 / 共 1 頁</div>
-      <div class="btnrow" style="margin-top:10px;">
+      <div class="row-inline" style="margin-top:10px;">
+        <span class="small" id="pageIndicator" style="flex:1;">第 1 頁 / 共 1 頁</span>
         <button class="primary" id="btnLoad">載入/重繪</button>
         <button id="btnFit">自動縮放</button>
       </div>
@@ -314,15 +280,15 @@
     </div>
 
     <div class="card">
-      <h2>② 新增／修改欄位</h2>
+      <div class="cardHead">
+        <h2>② 編輯欄位</h2>
+        <span class="modeBadge" id="modeBanner">新增模式</span>
+      </div>
 
-      <div class="modeBanner" id="modeBanner">新增模式</div>
+      <button class="primary" id="btnArm">定位</button>
 
-      <button class="primary bigArm" id="btnArm">定位（新增欄位）：點我後，到右邊 PDF 上點一下／拖一下</button>
-      <div class="armHint" id="armHint">提示：先選好「類型」與「字級」，再按「定位」，然後到 PDF 上操作。</div>
-
-      <div class="row" style="margin-top:10px;">
-        <div>
+      <div class="row-inline" style="margin-top:10px;">
+        <div class="field-inline">
           <label>類型</label>
           <select id="fieldType">
             <option value="check">check（打勾）</option>
@@ -330,8 +296,8 @@
             <option value="block">block（區塊）</option>
           </select>
         </div>
-        <div>
-          <label>字級(pt)</label>
+        <div class="field-inline">
+          <label>字級</label>
           <select id="fontSize">
             <option value="8">8</option>
             <option value="8.5">8.5</option>
@@ -372,7 +338,7 @@
       </div>
 
       <div class="snapRow">
-        <button id="btnSnapToggle">對齊關</button>
+        <button id="btnSnapToggle">對齊：關</button>
         <div style="min-width:80px;">
           <label>顆粒(mm)</label>
           <select id="snapStep">
@@ -391,7 +357,7 @@
             <option value="1">1 mm</option>
           </select>
         </div>
-        <button class="danger btn-sm" id="btnDeleteSelected">刪除選取</button>
+        <button class="danger" id="btnDeleteSelected">刪除選取</button>
       </div>
       <div class="small" style="margin-top:10px;">
         Ctrl+D 複製、Delete 刪除、Esc 取消（選取／定位）
@@ -480,7 +446,6 @@
   const errBox = el('err');
   const armLamp = el('armLamp');
   const statusText = el('statusText');
-  const armHint = el('armHint');
   const modeBanner = el('modeBanner');
   const guideV = el('guideV');
   const guideH = el('guideH');
@@ -751,7 +716,7 @@
   function syncSnapToggleButton() {
     btnSnapToggle.classList.toggle('primary', snapConfig.enabled);
     btnSnapToggle.classList.toggle('active', snapConfig.enabled);
-    btnSnapToggle.textContent = `對齊${snapConfig.enabled ? '開' : '關'}`;
+    btnSnapToggle.textContent = `對齊：${snapConfig.enabled ? '開' : '關'}`;
   }
 
   function toggleSnapAssist() {
@@ -814,20 +779,14 @@
   function updateArmStatusText() {
     if (!armed) {
       setStatus('未啟用', false);
-      armHint.classList.remove('on');
-      armHint.textContent = '提示：先選好「類型」與「字級」，再按「定位」，然後到 PDF 上操作。';
       return;
     }
-    armHint.classList.add('on');
     if (fieldType.value === 'block') {
       setStatus('已啟用（block：在 PDF 上按住拖曳拉出方框）', true);
-      armHint.textContent = '✅ 已啟用（block）：到右邊 PDF 上按住拖曳拉出方框。再按一次「定位」取消。';
     } else if (fieldType.value === 'text') {
       setStatus('已啟用（text：在 PDF 上按住拖曳拉出方框）', true);
-      armHint.textContent = '✅ 已啟用（text）：到右邊 PDF 上按住拖曳拉出方框。再按一次「定位」取消。';
     } else {
       setStatus('已啟用（check：點一下定位）', true);
-      armHint.textContent = '✅ 已啟用（check）：到右邊 PDF 上點一下即放置。再按一次「定位」取消。';
     }
   }
 
@@ -1362,14 +1321,14 @@
   function arm() {
     armed = true;
     btnArm.classList.add('active');
-    btnArm.textContent = '定位中…（再按一次取消）';
+    btnArm.textContent = '定位中…';
     updateArmStatusText();
   }
 
   function cancelArm() {
     armed = false;
     btnArm.classList.remove('active');
-    btnArm.textContent = '定位（新增欄位）：點我後，到右邊 PDF 上點一下／拖一下';
+    btnArm.textContent = '定位';
     if (blockDraft?.el) blockDraft.el.remove();
     blockDraft = null;
     updateArmStatusText();
