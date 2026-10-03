@@ -203,6 +203,79 @@
       padding:6px 10px;
       border-radius:8px;
     }
+    .symChip {
+      min-width:34px;
+      text-align:center;
+      font-size:16px;
+      line-height:1;
+      padding:6px 8px;
+    }
+    .symChip.active {
+      background:#d9f3e0;
+      border-color:#5caf71;
+      color:#1d5f2d;
+    }
+    .symEditWrap { position:relative; display:inline-flex; align-items:center; }
+    .symEditInput {
+      width:44px;
+      text-align:center;
+      font-size:15px;
+      padding:6px 4px;
+    }
+    .symDel {
+      padding:4px 7px;
+      font-size:11px;
+      line-height:1;
+    }
+    #btnPrevPage:disabled, #btnNextPage:disabled { opacity:0.4; cursor:default; }
+    .btn-sm {
+      padding:6px 9px;
+      font-size:12px;
+      line-height:1;
+    }
+    .bigArm {
+      display:block;
+      width:100%;
+      margin-top:10px;
+      padding:12px;
+      font-size:14px;
+      font-weight:800;
+    }
+    .bigArm.active {
+      background:#d9f3e0;
+      border-color:#5caf71;
+      color:#1d5f2d;
+      box-shadow:0 0 0 3px rgba(92,175,113,0.25);
+    }
+    .armHint {
+      margin-top:8px;
+      font-size:12px;
+      color:var(--muted);
+      border-left:3px solid var(--line);
+      padding-left:8px;
+      line-height:1.4;
+    }
+    .armHint.on {
+      color:#1d5f2d;
+      border-left-color:#5caf71;
+      font-weight:700;
+    }
+    .modeBanner {
+      margin-top:8px;
+      padding:8px 10px;
+      border-radius:8px;
+      font-size:12px;
+      font-weight:700;
+      line-height:1.4;
+      background:#f2e7d1;
+      border:1px solid #cdb48a;
+      color:#6b5838;
+    }
+    .modeBanner.editing {
+      background:#d9f3e0;
+      border-color:#5caf71;
+      color:#1d5f2d;
+    }
   </style>
 </head>
 <body>
@@ -221,13 +294,18 @@
       <div class="row" style="margin-top:10px;">
         <div>
           <label>頁碼</label>
-          <input id="pageNo" type="number" min="1" value="1"/>
+          <div style="display:flex; gap:4px; align-items:center;">
+            <button id="btnPrevPage" class="btn-sm" title="上一頁" style="flex:0 0 auto;">◀</button>
+            <input id="pageNo" type="number" min="1" value="1" style="text-align:center;"/>
+            <button id="btnNextPage" class="btn-sm" title="下一頁" style="flex:0 0 auto;">▶</button>
+          </div>
         </div>
         <div>
           <label>縮放（整數）</label>
           <input id="scale" type="number" min="1" max="8" step="1" value="2"/>
         </div>
       </div>
+      <div class="small" id="pageIndicator" style="margin-top:8px;">第 1 頁 / 共 1 頁</div>
       <div class="btnrow" style="margin-top:10px;">
         <button class="primary" id="btnLoad">載入/重繪</button>
         <button id="btnFit">自動縮放</button>
@@ -239,8 +317,13 @@
     </div>
 
     <div class="card">
-      <h2>② 新增欄位（自動編號）</h2>
+      <h2>② 新增／修改欄位（自動編號）</h2>
       <div class="small">key 會自動產生（如 field_001、field_002）。</div>
+
+      <div class="modeBanner" id="modeBanner">新增模式：上方「字級／對齊／符號」是「新建立」欄位的預設值。</div>
+
+      <button class="primary bigArm" id="btnArm">定位（新增欄位）：點我後，到右邊 PDF 上點一下／拖一下</button>
+      <div class="armHint" id="armHint">提示：先選好「類型」與「字級」，再按「定位」，然後到 PDF 上操作。</div>
 
       <div class="row" style="margin-top:10px;">
         <div>
@@ -271,13 +354,19 @@
         </div>
       </div>
 
+      <div id="symbolRow" style="margin-top:10px;">
+        <label>打勾符號（check 用，點一下選取）</label>
+        <div id="symbolPalette" class="btnrow" style="gap:6px; align-items:center;"></div>
+        <div class="small" style="margin-top:4px;">選取的符號會套用到下一個新增的 check。可新增／編輯／刪除。</div>
+      </div>
+
       <div class="row" style="margin-top:10px;">
         <div>
-          <label>對齊（text）</label>
+          <label>對齊</label>
           <select id="align">
-            <option value="L">L</option>
-            <option value="C">C</option>
-            <option value="R">R</option>
+            <option value="L">靠左</option>
+            <option value="C">置中</option>
+            <option value="R">靠右</option>
           </select>
         </div>
         <div>
@@ -289,16 +378,7 @@
         </div>
       </div>
 
-      <div class="row" style="margin-top:10px;">
-        <div>
-          <input id="wmm" type="hidden" value=""/>
-          <input id="hmm" type="hidden" value=""/>
-          <input id="dxy" type="hidden" value=""/>
-        </div>
-      </div>
-
       <div class="btnrow" style="margin-top:10px;">
-        <button class="primary" id="btnArm">定位</button>
         <button class="danger" id="btnDeleteSelected">刪除選取</button>
       </div>
       <div class="snapRow">
@@ -324,7 +404,8 @@
       </div>
       <div class="small" style="margin-top:10px;">
         最簡流程：check 用點一下；text/block 用拖曳拉方框。<br/>
-        快捷鍵：Ctrl+D 複製選取、Delete 刪除選取。
+        選取某個標記後，上方「字級／對齊／符號」會改到它身上；要回到「新增預設」按 Esc 取消選取。<br/>
+        快捷鍵：Ctrl+D 複製選取、Delete 刪除選取、Esc 取消選取／取消定位。
       </div>
     </div>
 
@@ -375,6 +456,11 @@
   const pdfFile = el('pdfFile');
   const btnLoad = el('btnLoad');
   const btnFit = el('btnFit');
+  const btnPrevPage = el('btnPrevPage');
+  const btnNextPage = el('btnNextPage');
+  const pageIndicator = el('pageIndicator');
+  const symbolRow = el('symbolRow');
+  const symbolPalette = el('symbolPalette');
   const pageNo = el('pageNo');
   const scaleEl = el('scale');
   const canvas = el('pdfCanvas');
@@ -385,9 +471,6 @@
   const fontSize = el('fontSize');
   const align = el('align');
   const valueMode = el('valueMode');
-  const wmm = el('wmm');
-  const hmm = el('hmm');
-  const dxy = el('dxy');
   const btnArm = el('btnArm');
   const btnDeleteSelected = el('btnDeleteSelected');
   const btnToggleSide = el('btnToggleSide');
@@ -408,11 +491,14 @@
   const errBox = el('err');
   const armLamp = el('armLamp');
   const statusText = el('statusText');
+  const armHint = el('armHint');
+  const modeBanner = el('modeBanner');
   const guideV = el('guideV');
   const guideH = el('guideH');
 
   let pdfDoc = null;
   let currentPage = null;
+  let currentPageNum = 1;
   let viewport = null;
   let armed = false;
   let dragState = null;
@@ -431,6 +517,126 @@
     guides: false,
     step: Math.max(0.1, parseFloat(snapStep.value || '1'))
   };
+
+  const SYMBOLS_STORAGE_KEY = 'pingpdf.checkSymbols';
+  const DEFAULT_CHECK_SYMBOLS = ['✓', '✗', '○', '●'];
+  let checkSymbols = loadCheckSymbols();
+  let activeCheckSymbol = checkSymbols[0] || '✓';
+  let symbolEditMode = false;
+
+  function loadCheckSymbols() {
+    try {
+      const raw = localStorage.getItem(SYMBOLS_STORAGE_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          const cleaned = arr.map(s => String(s)).filter(s => s.length > 0);
+          if (cleaned.length) return cleaned;
+        }
+      }
+    } catch {}
+    return [...DEFAULT_CHECK_SYMBOLS];
+  }
+
+  function saveCheckSymbols() {
+    try {
+      localStorage.setItem(SYMBOLS_STORAGE_KEY, JSON.stringify(checkSymbols));
+    } catch {}
+  }
+
+  function ensureActiveSymbolValid() {
+    if (!checkSymbols.includes(activeCheckSymbol)) {
+      activeCheckSymbol = checkSymbols[0] || '✓';
+    }
+  }
+
+  function renderSymbolPalette() {
+    symbolPalette.innerHTML = '';
+    ensureActiveSymbolValid();
+
+    checkSymbols.forEach((sym, idx) => {
+      if (symbolEditMode) {
+        const editWrap = document.createElement('div');
+        editWrap.className = 'symEditWrap';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'symEditInput';
+        input.value = sym;
+        input.maxLength = 4;
+        input.addEventListener('input', () => {
+          const v = input.value;
+          const wasActive = checkSymbols[idx] === activeCheckSymbol;
+          checkSymbols[idx] = v;
+          if (wasActive) activeCheckSymbol = v;
+          saveCheckSymbols();
+        });
+        const del = document.createElement('button');
+        del.className = 'danger symDel';
+        del.textContent = '✕';
+        del.title = '刪除此符號';
+        del.addEventListener('click', () => {
+          checkSymbols.splice(idx, 1);
+          if (!checkSymbols.length) checkSymbols = [...DEFAULT_CHECK_SYMBOLS];
+          ensureActiveSymbolValid();
+          saveCheckSymbols();
+          renderSymbolPalette();
+        });
+        editWrap.appendChild(input);
+        editWrap.appendChild(del);
+        symbolPalette.appendChild(editWrap);
+      } else {
+        const chip = document.createElement('button');
+        chip.className = 'symChip' + (sym === activeCheckSymbol ? ' active' : '');
+        chip.textContent = sym;
+        chip.title = '選取此符號';
+        chip.addEventListener('click', () => {
+          activeCheckSymbol = sym;
+          if (activeKey && mapping[activeKey] && mapping[activeKey].kind === 'check') {
+            const entry = mapping[activeKey];
+            entry.value = sym;
+            entry.checked = true;
+            upsertMarker(activeKey, entry);
+            updateOutput();
+            renderList();
+          }
+          renderSymbolPalette();
+        });
+        symbolPalette.appendChild(chip);
+      }
+    });
+
+    const addBtn = document.createElement('button');
+    addBtn.textContent = '＋';
+    addBtn.title = '新增符號';
+    addBtn.className = 'btn-sm';
+    addBtn.addEventListener('click', () => {
+      checkSymbols.push('✓');
+      saveCheckSymbols();
+      symbolEditMode = true;
+      renderSymbolPalette();
+      const inputs = symbolPalette.querySelectorAll('.symEditInput');
+      const last = inputs[inputs.length - 1];
+      if (last) { last.focus(); last.select(); }
+    });
+    symbolPalette.appendChild(addBtn);
+
+    const editBtn = document.createElement('button');
+    editBtn.textContent = symbolEditMode ? '完成' : '編輯';
+    editBtn.title = symbolEditMode ? '結束編輯' : '編輯符號清單';
+    editBtn.className = 'btn-sm';
+    if (symbolEditMode) editBtn.classList.add('primary', 'active');
+    editBtn.addEventListener('click', () => {
+      symbolEditMode = !symbolEditMode;
+      if (!symbolEditMode) {
+        checkSymbols = checkSymbols.map(s => String(s)).filter(s => s.length > 0);
+        if (!checkSymbols.length) checkSymbols = [...DEFAULT_CHECK_SYMBOLS];
+        ensureActiveSymbolValid();
+        saveCheckSymbols();
+      }
+      renderSymbolPalette();
+    });
+    symbolPalette.appendChild(editBtn);
+  }
 
   function roundMm(value) {
     return +Number(value).toFixed(COORD_DECIMALS);
@@ -591,14 +797,6 @@
     return `field_${String(i).padStart(3, '0')}`;
   }
 
-  function parseDxy() {
-    const text = (dxy.value || '').trim();
-    if (!text) return null;
-    const nums = text.split(',').map(v => parseFloat(v.trim()));
-    if (nums.length !== 2 || nums.some(Number.isNaN)) return null;
-    return { dx_mm: nums[0], dy_mm: nums[1] };
-  }
-
   function mmToCanvasPx(x_mm, y_mm) {
     const x_pt = x_mm * MM_TO_PT;
     const y_pt = y_mm * MM_TO_PT;
@@ -620,17 +818,53 @@
     armLamp.classList.toggle('on', !!isOn);
   }
 
+  function syncSymbolRowVisibility() {
+    symbolRow.style.display = fieldType.value === 'check' ? 'block' : 'none';
+  }
+
   function updateArmStatusText() {
     if (!armed) {
       setStatus('未啟用', false);
+      armHint.classList.remove('on');
+      armHint.textContent = '提示：先選好「類型」與「字級」，再按「定位」，然後到 PDF 上操作。';
       return;
     }
+    armHint.classList.add('on');
     if (fieldType.value === 'block') {
       setStatus('已啟用（block：在 PDF 上按住拖曳拉出方框）', true);
+      armHint.textContent = '✅ 已啟用（block）：到右邊 PDF 上按住拖曳拉出方框。再按一次「定位」取消。';
     } else if (fieldType.value === 'text') {
       setStatus('已啟用（text：在 PDF 上按住拖曳拉出方框）', true);
+      armHint.textContent = '✅ 已啟用（text）：到右邊 PDF 上按住拖曳拉出方框。再按一次「定位」取消。';
     } else {
       setStatus('已啟用（check：點一下定位）', true);
+      armHint.textContent = '✅ 已啟用（check）：到右邊 PDF 上點一下即放置。再按一次「定位」取消。';
+    }
+  }
+
+  function syncControlsToEntry(entry) {
+    // Reflect the selected field's properties in the top controls,
+    // so changing them edits this field (properties-panel behaviour).
+    fieldType.value = entry.kind || 'check';
+    if (Number.isFinite(entry.font_size)) fontSize.value = String(entry.font_size);
+    align.value = entry.align || 'L';
+    if (entry.kind === 'text') valueMode.value = entry.value_mode || 'text';
+    syncSymbolRowVisibility();
+    if (entry.kind === 'check') {
+      const sym = (entry.value || '').trim();
+      if (sym) activeCheckSymbol = sym;
+      renderSymbolPalette();
+    }
+  }
+
+  function updateModeBanner() {
+    if (activeKey && mapping[activeKey]) {
+      const entry = mapping[activeKey];
+      modeBanner.classList.add('editing');
+      modeBanner.textContent = `🟢 修改中：${activeKey}（${entry.kind}）— 改上方「字級／對齊／符號」會直接套用到它。按 Esc 取消選取回到新增。`;
+    } else {
+      modeBanner.classList.remove('editing');
+      modeBanner.textContent = '新增模式：上方「字級／對齊／符號」是「新建立」欄位的預設值。';
     }
   }
 
@@ -638,6 +872,8 @@
     activeKey = key;
     markersByKey.forEach((m, k) => m.classList.toggle('selected', k === key));
     blocksByKey.forEach((b, k) => b.classList.toggle('selected', k === key));
+    if (key && mapping[key]) syncControlsToEntry(mapping[key]);
+    updateModeBanner();
   }
 
   function deleteByKeys(keys) {
@@ -794,6 +1030,7 @@
   function upsertMarker(key, entry) {
     if (entry.kind === 'block' || entry.kind === 'text') return;
     if (!viewport) return;
+    if ((entry.page || 1) !== currentPageNum) return;
     let marker = markersByKey.get(key);
     const markerSymbol = entry.kind === 'check'
       ? (entry.checked === false ? '□' : (entry.value?.trim() || '✓'))
@@ -823,6 +1060,7 @@
 
   function upsertBlock(key, entry) {
     if ((entry.kind !== 'block' && entry.kind !== 'text') || !viewport) return;
+    if ((entry.page || 1) !== currentPageNum) return;
     let block = blocksByKey.get(key);
     if (!block) {
       block = document.createElement('div');
@@ -901,6 +1139,7 @@
   function redrawMarkersFromMapping() {
     clearMarkers();
     for (const [key, entry] of Object.entries(mapping)) {
+      if ((entry.page || 1) !== currentPageNum) continue;
       if (typeof entry.x_mm === 'number' && typeof entry.y_mm === 'number') {
         if (entry.kind === 'block' || entry.kind === 'text') {
           upsertBlock(key, entry);
@@ -912,6 +1151,7 @@
   }
 
   function renderList() {
+    updateModeBanner();
     list.innerHTML = '';
     const keys = sortKeys();
     if (keys.length === 0) {
@@ -927,6 +1167,13 @@
       item.addEventListener('click', (evt) => {
         const tag = evt.target?.tagName;
         if (tag === 'INPUT' || tag === 'SELECT' || tag === 'BUTTON' || tag === 'TEXTAREA' || evt.target?.closest('label')) return;
+        if ((entry.page || 1) !== currentPageNum && pdfDoc) {
+          renderPage(entry.page || 1).then(() => {
+            setActiveKey(key);
+            renderList();
+          });
+          return;
+        }
         setActiveKey(key);
         renderList();
       });
@@ -960,7 +1207,7 @@
       const chip = document.createElement('button');
       chip.className = 'chipBtn';
       const checkedText = entry.kind === 'check' ? (entry.checked === false ? '☐' : '☑') : '•';
-      chip.textContent = `${entry.order}. ${checkedText} ${key}`;
+      chip.textContent = `${entry.order}. [P${entry.page || 1}] ${checkedText} ${key}`;
       chip.addEventListener('click', () => {
         setActiveKey(key);
         if (entry.kind === 'check') {
@@ -979,19 +1226,21 @@
       right.innerHTML = `<span class="tag">${entry.kind}</span>`;
 
       const up = document.createElement('button');
+      up.className = 'btn-sm';
       up.textContent = '↑';
       up.title = '往上移';
       up.disabled = keys.indexOf(key) === 0;
       up.addEventListener('click', () => moveOrder(key, -1));
 
       const down = document.createElement('button');
+      down.className = 'btn-sm';
       down.textContent = '↓';
       down.title = '往下移';
       down.disabled = keys.indexOf(key) === keys.length - 1;
       down.addEventListener('click', () => moveOrder(key, 1));
 
       const del = document.createElement('button');
-      del.className = 'danger';
+      del.className = 'danger btn-sm';
       del.textContent = '刪除';
       del.addEventListener('click', () => {
         deleteByKeys([key]);
@@ -1005,10 +1254,10 @@
       item.appendChild(top);
 
       const grid = document.createElement('div');
-      grid.className = entry.kind === 'block' ? 'itemGrid single' : 'itemGrid';
+      grid.className = 'itemGrid single';
 
       const textWrap = document.createElement('div');
-      textWrap.innerHTML = '<div class="miniLabel">文字內容</div>';
+      textWrap.innerHTML = '<div class="miniLabel">文字內容（字級／對齊／符號／型態請用上方面板，先在此清單或 PDF 上選取該欄位）</div>';
       const textInput = document.createElement('input');
       textInput.type = entry.value_mode === 'number' ? 'number' : 'text';
       textInput.value = entry.value || '';
@@ -1026,61 +1275,6 @@
       });
       textWrap.appendChild(textInput);
       grid.appendChild(textWrap);
-
-      if (entry.kind !== 'block') {
-        const fsWrap = document.createElement('div');
-        fsWrap.innerHTML = '<div class="miniLabel">字級</div>';
-        const fsInput = document.createElement('select');
-        fsInput.innerHTML = FONT_SIZE_OPTIONS_HTML;
-        fsInput.value = String(Number.isFinite(entry.font_size) ? entry.font_size : 12);
-        if (!fsInput.value) fsInput.value = '12';
-        fsInput.addEventListener('change', () => {
-          const v = parseFloat(fsInput.value || '12');
-          entry.font_size = Number.isFinite(v) ? +v.toFixed(2) : 12;
-          if (entry.kind === 'text') upsertBlock(key, entry);
-          else upsertMarker(key, entry);
-          updateOutput();
-        });
-        fsWrap.appendChild(fsInput);
-        grid.appendChild(fsWrap);
-
-        const alignWrap = document.createElement('div');
-        alignWrap.innerHTML = '<div class="miniLabel">對齊</div>';
-        const alignSel = document.createElement('select');
-        alignSel.innerHTML = '<option value="L">L</option><option value="C">C</option><option value="R">R</option>';
-        alignSel.value = entry.align || 'L';
-        alignSel.addEventListener('change', () => {
-          entry.align = alignSel.value;
-          if (entry.kind === 'text') upsertBlock(key, entry);
-          updateOutput();
-        });
-        alignWrap.appendChild(alignSel);
-        grid.appendChild(alignWrap);
-      }
-
-      if (entry.kind === 'text') {
-        const modeWrap = document.createElement('div');
-        modeWrap.className = 'itemGrid single';
-        modeWrap.style.marginTop = '6px';
-        modeWrap.innerHTML = '<div class="miniLabel">內容型態</div>';
-        const modeSel = document.createElement('select');
-        modeSel.innerHTML = '<option value="text">文字</option><option value="number">數字</option>';
-        modeSel.value = entry.value_mode || 'text';
-        modeSel.addEventListener('change', () => {
-          entry.value_mode = modeSel.value;
-          if (entry.value_mode === 'number') {
-            entry.value = '5';
-          } else {
-            const chars = estimateCharsByWidth(entry.w_mm || 10, entry.font_size || 12);
-            entry.value = makeSampleChineseText(chars);
-          }
-          upsertBlock(key, entry);
-          updateOutput();
-          renderList();
-        });
-        modeWrap.appendChild(modeSel);
-        item.appendChild(modeWrap);
-      }
 
       const noteWrap = document.createElement('div');
       noteWrap.className = 'itemGrid single';
@@ -1111,6 +1305,7 @@
   function addEntry(entry, key = null) {
     const actualKey = key || nextKey();
     entry.order = entry.order || (maxOrder() + 1);
+    if (!Number.isFinite(entry.page)) entry.page = currentPageNum;
     mapping[actualKey] = entry;
     setActiveKey(actualKey);
     updateOutput();
@@ -1143,6 +1338,8 @@
       const kind = raw.kind || 'check';
       const entry = { ...raw };
       entry.kind = ['check', 'text', 'block'].includes(kind) ? kind : 'check';
+      const pageNum = Math.floor(Number(raw.page));
+      entry.page = Number.isFinite(pageNum) && pageNum >= 1 ? pageNum : 1;
       entry.x_mm = roundMm(Number(entry.x_mm || 0));
       entry.y_mm = roundMm(Number(entry.y_mm || 0));
       if (entry.kind !== 'check') {
@@ -1177,12 +1374,14 @@
   function arm() {
     armed = true;
     btnArm.classList.add('active');
+    btnArm.textContent = '定位中…（再按一次取消）';
     updateArmStatusText();
   }
 
   function cancelArm() {
     armed = false;
     btnArm.classList.remove('active');
+    btnArm.textContent = '定位（新增欄位）：點我後，到右邊 PDF 上點一下／拖一下';
     if (blockDraft?.el) blockDraft.el.remove();
     blockDraft = null;
     updateArmStatusText();
@@ -1196,6 +1395,50 @@
   function getClickPxOnCanvas(evt) {
     const rect = canvas.getBoundingClientRect();
     return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+  }
+
+  function updatePageIndicator() {
+    const total = pdfDoc ? pdfDoc.numPages : 1;
+    pageIndicator.textContent = `第 ${currentPageNum} 頁 / 共 ${total} 頁`;
+    btnPrevPage.disabled = !pdfDoc || currentPageNum <= 1;
+    btnNextPage.disabled = !pdfDoc || currentPageNum >= total;
+  }
+
+  async function renderPage(n) {
+    if (!pdfDoc) return;
+    try {
+      errBox.textContent = '';
+      const p = Math.min(Math.max(parseInt(n || 1, 10), 1), pdfDoc.numPages);
+      currentPageNum = p;
+      pageNo.value = p;
+      currentPage = await pdfDoc.getPage(p);
+
+      const integerScale = Math.max(1, parseInt(scaleEl.value || '2', 10));
+      scaleEl.value = String(integerScale);
+      viewport = currentPage.getViewport({ scale: integerScale });
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+
+      await currentPage.render({ canvasContext: ctx, viewport }).promise;
+      activeKey = null;
+      hideGuides();
+      redrawMarkersFromMapping();
+
+      const view = currentPage.view;
+      const wmmPage = (view[2] - view[0]) * PT_TO_MM;
+      const hmmPage = (view[3] - view[1]) * PT_TO_MM;
+      pageSize.textContent = `${wmmPage.toFixed(2)} × ${hmmPage.toFixed(2)} mm`;
+      updatePageIndicator();
+      updateArmStatusText();
+      renderList();
+    } catch (err) {
+      errBox.textContent = String(err?.message || err);
+    }
+  }
+
+  function gotoPage(n) {
+    if (!pdfDoc) return;
+    renderPage(n);
   }
 
   async function loadAndRender() {
@@ -1213,23 +1456,7 @@
       pdfDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
 
       const p = Math.min(Math.max(parseInt(pageNo.value || '1', 10), 1), pdfDoc.numPages);
-      pageNo.value = p;
-      currentPage = await pdfDoc.getPage(p);
-
-      const integerScale = Math.max(1, parseInt(scaleEl.value || '2', 10));
-      scaleEl.value = String(integerScale);
-      viewport = currentPage.getViewport({ scale: integerScale });
-      canvas.width = Math.floor(viewport.width);
-      canvas.height = Math.floor(viewport.height);
-
-      await currentPage.render({ canvasContext: ctx, viewport }).promise;
-      redrawMarkersFromMapping();
-
-      const view = currentPage.view;
-      const wmmPage = (view[2] - view[0]) * PT_TO_MM;
-      const hmmPage = (view[3] - view[1]) * PT_TO_MM;
-      pageSize.textContent = `${wmmPage.toFixed(2)} × ${hmmPage.toFixed(2)} mm`;
-      updateArmStatusText();
+      await renderPage(p);
     } catch (err) {
       errBox.textContent = String(err?.message || err);
     }
@@ -1286,21 +1513,19 @@
       const mm2 = canvasPxToMm(left + widthPx, top + heightPx);
       const autoW = mm2.x_mm - mm1.x_mm;
       const autoH = mm2.y_mm - mm1.y_mm;
-      const userW = parseFloat(wmm.value || '');
-      const userH = parseFloat(hmm.value || '');
-      const d = parseDxy();
       const kind = fieldType.value;
       const fs = parseFloat(fontSize.value || '12');
       const entry = {
         kind,
+        page: currentPageNum,
         x_mm: roundMm(mm1.x_mm),
         y_mm: roundMm(mm1.y_mm),
         value: '',
         value_mode: kind === 'text' ? valueMode.value : 'text',
         align: align.value,
         font_size: +fs.toFixed(2),
-        w_mm: roundMm(Number.isFinite(userW) && userW > 0 ? userW : autoW),
-        h_mm: roundMm(Number.isFinite(userH) && userH > 0 ? userH : autoH),
+        w_mm: roundMm(autoW),
+        h_mm: roundMm(autoH),
         note: ''
       };
       const snapped = applySnap(entry.x_mm, entry.y_mm, null);
@@ -1314,7 +1539,6 @@
           entry.value = makeSampleChineseText(chars);
         }
       }
-      if (d) Object.assign(entry, d);
       const key = addEntry(entry);
       lastXY.textContent = `${key}: x=${mmText(entry.x_mm)}mm, y=${mmText(entry.y_mm)}mm`;
     }
@@ -1374,18 +1598,18 @@
     const kind = fieldType.value;
     if (kind !== 'check') return;
     const fs = parseFloat(fontSize.value || '12');
-    const d = parseDxy();
 
     const pos = getClickPxOnCanvas(evt);
     const mm = canvasPxToMm(pos.x, pos.y);
 
     const entry = {
       kind,
+      page: currentPageNum,
       x_mm: roundMm(mm.x_mm),
       y_mm: roundMm(mm.y_mm),
-      value: '✓',
-      value_mode: kind === 'text' ? valueMode.value : 'text',
-      checked: kind === 'check' ? true : undefined,
+      value: activeCheckSymbol || '✓',
+      value_mode: 'text',
+      checked: true,
       align: align.value,
       font_size: +fs.toFixed(2),
       note: ''
@@ -1393,14 +1617,6 @@
     const snapped = applySnap(entry.x_mm, entry.y_mm, null);
     entry.x_mm = roundMm(snapped.x_mm);
     entry.y_mm = roundMm(snapped.y_mm);
-
-    if (kind === 'text') {
-      entry.align = align.value;
-      const userW = parseFloat(wmm.value || '');
-      if (Number.isFinite(userW) && userW > 0) entry.w_mm = roundMm(userW);
-      if (entry.value_mode === 'number' && Number.isNaN(Number(entry.value))) entry.value = '';
-    }
-    if (d) Object.assign(entry, d);
 
     const key = addEntry(entry);
     lastXY.textContent = `${key}: x=${mmText(entry.x_mm)}mm, y=${mmText(entry.y_mm)}mm`;
@@ -1422,8 +1638,52 @@
     if (pdfFile.files?.[0]) loadAndRender();
   });
   btnFit.addEventListener('click', fitScale);
+  btnPrevPage.addEventListener('click', () => gotoPage(currentPageNum - 1));
+  btnNextPage.addEventListener('click', () => gotoPage(currentPageNum + 1));
+  pageNo.addEventListener('change', () => {
+    if (pdfDoc) gotoPage(parseInt(pageNo.value || '1', 10));
+  });
   btnArm.addEventListener('click', toggleArm);
-  fieldType.addEventListener('change', updateArmStatusText);
+  fieldType.addEventListener('change', () => {
+    updateArmStatusText();
+    syncSymbolRowVisibility();
+  });
+
+  fontSize.addEventListener('change', () => {
+    if (!activeKey || !mapping[activeKey]) return;
+    const entry = mapping[activeKey];
+    const v = parseFloat(fontSize.value || '12');
+    entry.font_size = Number.isFinite(v) ? +v.toFixed(2) : 12;
+    if (entry.kind === 'check') upsertMarker(activeKey, entry);
+    else upsertBlock(activeKey, entry);
+    updateOutput();
+    renderList();
+  });
+
+  align.addEventListener('change', () => {
+    if (!activeKey || !mapping[activeKey]) return;
+    const entry = mapping[activeKey];
+    entry.align = align.value;
+    if (entry.kind === 'text') upsertBlock(activeKey, entry);
+    else if (entry.kind === 'check') upsertMarker(activeKey, entry);
+    updateOutput();
+    renderList();
+  });
+
+  valueMode.addEventListener('change', () => {
+    if (!activeKey || !mapping[activeKey] || mapping[activeKey].kind !== 'text') return;
+    const entry = mapping[activeKey];
+    entry.value_mode = valueMode.value;
+    if (entry.value_mode === 'number') {
+      entry.value = '5';
+    } else {
+      const chars = estimateCharsByWidth(entry.w_mm || 10, entry.font_size || 12);
+      entry.value = makeSampleChineseText(chars);
+    }
+    upsertBlock(activeKey, entry);
+    updateOutput();
+    renderList();
+  });
   btnDeleteSelected.addEventListener('click', () => {
     deleteCheckedOrActive();
   });
@@ -1483,6 +1743,11 @@
     const isTextInput = target && target.tagName === 'INPUT' && ['text', 'number', 'search', 'email', 'url', 'password'].includes((target.type || '').toLowerCase());
     const inEditor = !!(isTextInput || (target && (target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')));
     const moveKey = activeKey || [...checkedKeys][0] || null;
+    if (evt.key === 'Escape') {
+      if (armed) cancelArm();
+      else if (activeKey) { setActiveKey(null); renderList(); }
+      return;
+    }
     if (evt.ctrlKey && (evt.key === 'd' || evt.key === 'D')) {
       evt.preventDefault();
       cloneSelected();
@@ -1521,6 +1786,9 @@
   updateSnapStepOnly();
   syncSnapToggleButton();
   syncSidebarButton();
+  renderSymbolPalette();
+  syncSymbolRowVisibility();
+  updatePageIndicator();
 
   updateOutput();
   renderList();
